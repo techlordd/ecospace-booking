@@ -42,7 +42,10 @@ function eco_enqueue_booking_assets()
             'recurringSessionHours' => ECO_RECURRING_SESSION_HOURS,
             'recurringStartMinHour' => ECO_RECURRING_START_MIN_HOUR,
             'recurringStartMaxHour' => ECO_RECURRING_START_MAX_HOUR,
+            'bookedRecurringSlots' => eco_get_product_booked_slot_map($product->get_id()),
             'invalidHoursMessage' => __('Hours exceed closing time (8:00 PM)', 'ecospace-booking'),
+            'duplicateRecurringSlotMessage' => __('You selected the same preferred date and time more than once. Please choose a unique slot.', 'ecospace-booking'),
+            'bookedRecurringSlotMessage' => __('This preferred date and time is already booked. Please select another slot.', 'ecospace-booking'),
         )
     );
 }
@@ -88,6 +91,7 @@ function eco_booking_ui()
 
         <div id="eco_preferred_days"></div>
         <p id="eco_preferred_hint" class="eco-preferred-hint"></p>
+        <p id="eco_preferred_error" class="eco-preferred-error" style="display:none;"></p>
 
         <div id="eco_hourly_fields">
             <p>
@@ -257,4 +261,41 @@ function eco_add_booking_meta_to_order_item($item, $cart_item_key, $values)
     } elseif (!empty($booking['preferred_days'])) {
         $item->add_meta_data(__('Preferred Dates', 'ecospace-booking'), implode(', ', $booking['preferred_days']), true);
     }
+
+    $item->add_meta_data('_eco_booking_payload', wp_json_encode($booking), true);
+}
+
+add_action('woocommerce_after_checkout_validation', 'eco_revalidate_recurring_slots_before_checkout', 10, 2);
+function eco_revalidate_recurring_slots_before_checkout($posted_data, $errors)
+{
+    if (!WC()->cart instanceof WC_Cart) {
+        return;
+    }
+
+    foreach (WC()->cart->get_cart() as $cart_item) {
+        if (empty($cart_item['eco_booking']) || empty($cart_item['eco_booking']['plan']) || !eco_is_recurring_plan($cart_item['eco_booking']['plan'])) {
+            continue;
+        }
+
+        $product_id = (int) ($cart_item['eco_booking']['product_id'] ?? 0);
+        if ($product_id <= 0) {
+            continue;
+        }
+
+        $slots = isset($cart_item['eco_booking']['preferred_slots']) && is_array($cart_item['eco_booking']['preferred_slots'])
+            ? $cart_item['eco_booking']['preferred_slots']
+            : array();
+
+        $conflict_result = eco_validate_paid_slot_conflicts($product_id, $slots);
+        if (!$conflict_result['ok']) {
+            $errors->add('eco_booking_slot_unavailable', $conflict_result['message']);
+            return;
+        }
+    }
+}
+
+add_action('woocommerce_payment_complete', 'eco_allocate_paid_recurring_slots', 10, 1);
+function eco_allocate_paid_recurring_slots($order_id)
+{
+    eco_lock_paid_order_slots($order_id);
 }

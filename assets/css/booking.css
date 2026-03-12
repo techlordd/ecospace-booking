@@ -46,3 +46,14 @@
 .ecospace-booking-ui .eco-recurring-slot-title {
   margin: 0 0 8px;
 }
+
+.ecospace-booking-ui .eco-preferred-error {
+  margin: 6px 0 12px;
+  color: #b42318;
+  font-weight: 600;
+}
+
+.ecospace-booking-ui .eco-recurring-slot-error {
+  border-color: #b42318;
+  background: #fff2f1;
+}

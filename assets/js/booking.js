@@ -45,6 +45,13 @@
     return option;
   }
 
+  function createSelectPlaceholder(text) {
+    var option = document.createElement("option");
+    option.value = "";
+    option.textContent = text;
+    return option;
+  }
+
   function init() {
     var root = document.querySelector(".ecospace-booking-ui");
     if (!root || typeof flatpickr === "undefined") {
@@ -58,16 +65,26 @@
     var endDateBlock = byId("eco_end_date_block");
     var preferredDays = byId("eco_preferred_days");
     var preferredHint = byId("eco_preferred_hint");
+    var preferredError = byId("eco_preferred_error");
     var startTime = byId("eco_start_time");
     var hours = byId("eco_hours");
     var endTime = byId("eco_end_time");
     var price = byId("eco_price");
+    var form = root.closest("form");
 
     var openHour = Number(data.openHour || 9);
     var closeHour = Number(data.closeHour || 20);
     var recurringSessionHours = Number(data.recurringSessionHours || 8);
     var recurringStartMin = Number(data.recurringStartMinHour || openHour);
-    var recurringStartMax = Number(data.recurringStartMaxHour || 12);
+    var recurringStartMax = Number(data.recurringStartMaxHour || closeHour - 1);
+    var recurringPlans = {
+      weekly3: true,
+      weekly5: true,
+      monthly3: true,
+      monthly5: true,
+    };
+    var bookedRecurringSlots = data.bookedRecurringSlots || {};
+    var slotIdCounter = 0;
     var prices = {
       daily: Number(data.dailyPrice || 0),
       weekly3: Number(data.weekly3Price || 0),
@@ -86,16 +103,164 @@
       clickOpens: false,
     });
 
+    function isRecurringPlan(value) {
+      return recurringPlans[value] === true;
+    }
+
+    function setPreferredError(message) {
+      if (!preferredError) {
+        return;
+      }
+
+      if (!message) {
+        preferredError.textContent = "";
+        preferredError.style.display = "none";
+        return;
+      }
+
+      preferredError.textContent = message;
+      preferredError.style.display = "block";
+    }
+
     function clearPreferredInputs() {
       preferredDays.innerHTML = "";
       if (preferredHint) {
         preferredHint.textContent = "";
       }
+      setPreferredError("");
+    }
+
+    function getBookedSlotSetForDate(dateValue) {
+      var set = {};
+      if (!dateValue || !bookedRecurringSlots[dateValue] || !bookedRecurringSlots[dateValue].length) {
+        return set;
+      }
+
+      for (var i = 0; i < bookedRecurringSlots[dateValue].length; i += 1) {
+        set[bookedRecurringSlots[dateValue][i]] = true;
+      }
+
+      return set;
+    }
+
+    function collectInFormSlotKeys(excludedRowId) {
+      var set = {};
+      var rows = preferredDays.querySelectorAll(".eco-recurring-slot");
+
+      for (var i = 0; i < rows.length; i += 1) {
+        var row = rows[i];
+        if (excludedRowId && row.getAttribute("data-slot-id") === excludedRowId) {
+          continue;
+        }
+
+        var rowDate = row.querySelector('input[name="eco_preferred_days[]"]');
+        var rowStart = row.querySelector('select[name="eco_preferred_start_times[]"]');
+        var rowEnd = row.querySelector('select[name="eco_preferred_end_times[]"]');
+
+        if (!rowDate || !rowStart || !rowEnd || !rowDate.value || !rowStart.value || !rowEnd.value) {
+          continue;
+        }
+
+        set[rowDate.value + "|" + rowStart.value + "|" + rowEnd.value] = true;
+      }
+
+      return set;
+    }
+
+    function populateRecurringEndOptions(row, keepExistingSelection) {
+      var rowDate = row.querySelector('input[name="eco_preferred_days[]"]');
+      var rowStart = row.querySelector('select[name="eco_preferred_start_times[]"]');
+      var rowEnd = row.querySelector('select[name="eco_preferred_end_times[]"]');
+      var selectedDate = rowDate ? rowDate.value : "";
+      var selectedStart = rowStart ? Number(rowStart.value || 0) : 0;
+      var previousEnd = keepExistingSelection && rowEnd ? rowEnd.value : "";
+      var rowId = row.getAttribute("data-slot-id") || "";
+
+      if (!rowEnd) {
+        return;
+      }
+
+      rowEnd.innerHTML = "";
+      rowEnd.appendChild(createSelectPlaceholder("Select"));
+
+      if (!selectedStart) {
+        return;
+      }
+
+      var maxEnd = Math.min(selectedStart + recurringSessionHours, closeHour);
+      var bookedSet = getBookedSlotSetForDate(selectedDate);
+      var inFormSet = collectInFormSlotKeys(rowId);
+
+      for (var hour = selectedStart + 1; hour <= maxEnd; hour += 1) {
+        var shortKey = selectedStart + "|" + hour;
+        var fullKey = selectedDate + "|" + selectedStart + "|" + hour;
+        if (selectedDate && (bookedSet[shortKey] || inFormSet[fullKey])) {
+          continue;
+        }
+
+        rowEnd.appendChild(createHourOption(hour));
+      }
+
+      if (previousEnd && rowEnd.querySelector('option[value="' + previousEnd + '"]')) {
+        rowEnd.value = previousEnd;
+      }
+    }
+
+    function validateRecurringSlots() {
+      if (!isRecurringPlan(plan.value)) {
+        setPreferredError("");
+        return true;
+      }
+
+      var rows = preferredDays.querySelectorAll(".eco-recurring-slot");
+      var seen = {};
+      var hasError = false;
+      var message = "";
+
+      for (var i = 0; i < rows.length; i += 1) {
+        rows[i].classList.remove("eco-recurring-slot-error");
+      }
+
+      for (var j = 0; j < rows.length; j += 1) {
+        var row = rows[j];
+        var rowDate = row.querySelector('input[name="eco_preferred_days[]"]');
+        var rowStart = row.querySelector('select[name="eco_preferred_start_times[]"]');
+        var rowEnd = row.querySelector('select[name="eco_preferred_end_times[]"]');
+
+        if (!rowDate || !rowStart || !rowEnd || !rowDate.value || !rowStart.value || !rowEnd.value) {
+          continue;
+        }
+
+        var key = rowDate.value + "|" + rowStart.value + "|" + rowEnd.value;
+        if (seen[key]) {
+          row.classList.add("eco-recurring-slot-error");
+          seen[key].classList.add("eco-recurring-slot-error");
+          hasError = true;
+          message = data.duplicateRecurringSlotMessage || "Duplicate preferred slot selected";
+          continue;
+        }
+
+        var bookedSet = getBookedSlotSetForDate(rowDate.value);
+        var shortKey = rowStart.value + "|" + rowEnd.value;
+        if (bookedSet[shortKey]) {
+          row.classList.add("eco-recurring-slot-error");
+          hasError = true;
+          message = data.bookedRecurringSlotMessage || "Selected slot is already booked";
+          continue;
+        }
+
+        seen[key] = row;
+      }
+
+      setPreferredError(hasError ? message : "");
+      return !hasError;
     }
 
     function createRecurringSlotRow(slotLabel, start, end) {
       var row = document.createElement("div");
       row.className = "eco-recurring-slot";
+      slotIdCounter += 1;
+      row.setAttribute("data-slot-id", "slot-" + slotIdCounter);
 
       if (slotLabel) {
         var rowLabel = document.createElement("p");
@@ -121,10 +286,7 @@
       timeStartLabel.textContent = "Preferred Start Time";
       var timeStartSelect = document.createElement("select");
       timeStartSelect.name = "eco_preferred_start_times[]";
-      var defaultOption = document.createElement("option");
-      defaultOption.value = "";
-      defaultOption.textContent = "Select";
-      timeStartSelect.appendChild(defaultOption);
+      timeStartSelect.appendChild(createSelectPlaceholder("Select"));
       for (var hour = recurringStartMin; hour <= recurringStartMax; hour += 1) {
         timeStartSelect.appendChild(createHourOption(hour));
       }
@@ -135,27 +297,30 @@
       var timeEndField = document.createElement("p");
       var timeEndLabel = document.createElement("label");
       timeEndLabel.textContent = "Preferred End Time";
-      var timeEndInput = document.createElement("input");
-      timeEndInput.type = "text";
-      timeEndInput.readOnly = true;
+      var timeEndInput = document.createElement("select");
+      timeEndInput.name = "eco_preferred_end_times[]";
       timeEndInput.className = "eco-recurring-end-time";
+      timeEndInput.appendChild(createSelectPlaceholder("Select"));
       timeEndField.appendChild(timeEndLabel);
       timeEndField.appendChild(timeEndInput);
       row.appendChild(timeEndField);
 
-      timeStartSelect.addEventListener("change", function () {
-        var selected = Number(timeStartSelect.value || 0);
-        if (!selected) {
-          timeEndInput.value = "";
-          return;
-        }
-        timeEndInput.value = formatHour(selected + recurringSessionHours);
-      });
+      function onSlotChange() {
+        populateRecurringEndOptions(row, true);
+        validateRecurringSlots();
+      }
+
+      timeStartSelect.addEventListener("change", onSlotChange);
+      timeEndInput.addEventListener("change", validateRecurringSlots);
+      dateInput.addEventListener("change", onSlotChange);
 
       flatpickr(dateInput, {
         dateFormat: "Y-m-d",
         minDate: start || "today",
         maxDate: end || null,
+        onChange: function () {
+          onSlotChange();
+        },
       });
 
       preferredDays.appendChild(row);
@@ -249,7 +414,7 @@
       updateEndDateFromPlan();
 
       if (preferredHint) {
-        preferredHint.textContent = "Each session is fixed to " + recurringSessionHours + " hours. Choose a start time from " + formatHour(recurringStartMin) + " to " + formatHour(recurringStartMax) + ".";
+        preferredHint.textContent = "Select a preferred start and end time for each session. Maximum duration per session is " + recurringSessionHours + " hours.";
       }
 
       if (selectedPlan === "weekly3") {
@@ -265,6 +430,8 @@
         price.textContent = formatPrice(prices.monthly5);
         createMonthlyInputs(5);
       }
+
+      validateRecurringSlots();
     }
 
     plan.addEventListener("change", applyPlanUI);
@@ -274,6 +441,14 @@
     });
     startTime.addEventListener("change", updateHourlyPrice);
     hours.addEventListener("change", updateHourlyPrice);
+
+    if (form) {
+      form.addEventListener("submit", function (event) {
+        if (!validateRecurringSlots()) {
+          event.preventDefault();
+        }
+      });
+    }
 
     applyPlanUI();
   }

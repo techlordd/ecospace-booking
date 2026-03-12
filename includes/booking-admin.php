@@ -40,7 +40,7 @@ function eco_product_fields()
     );
 
     echo '<p class="form-field">';
-    echo '<span class="description">' . esc_html__('Recurring plans (Weekly 3x, Weekly 5x, Monthly 3x, Monthly 5x) use fixed 8-hour sessions. Each preferred date requires its own start time, and allowed recurring start times are 9:00 AM to 12:00 PM.', 'ecospace-booking') . '</span>';
+    echo '<span class="description">' . esc_html__('Recurring plans (Weekly 3x, Weekly 5x, Monthly 3x, Monthly 5x) require a preferred date, start time, and end time per session. Session duration must not exceed 8 hours and must stay within workspace opening hours.', 'ecospace-booking') . '</span>';
     echo '</p>';
 
     echo '</div>';
