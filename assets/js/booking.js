@@ -85,6 +85,7 @@
     };
     var bookedRecurringSlots = data.bookedRecurringSlots || {};
     var slotIdCounter = 0;
+    var recurringDatePickers = [];
     var prices = {
       daily: Number(data.dailyPrice || 0),
       weekly3: Number(data.weekly3Price || 0),
@@ -124,10 +125,42 @@
 
     function clearPreferredInputs() {
       preferredDays.innerHTML = "";
+      recurringDatePickers = [];
       if (preferredHint) {
         preferredHint.textContent = "";
       }
       setPreferredError("");
+    }
+
+    function syncRecurringDateAvailability() {
+      var selectedDates = {};
+
+      for (var i = 0; i < recurringDatePickers.length; i += 1) {
+        var currentValue = recurringDatePickers[i].input.value;
+        if (!currentValue) {
+          continue;
+        }
+
+        selectedDates[currentValue] = true;
+      }
+
+      for (var j = 0; j < recurringDatePickers.length; j += 1) {
+        var pickerEntry = recurringDatePickers[j];
+        var selfDate = pickerEntry.input.value;
+        var disableDates = [];
+
+        for (var dateValue in selectedDates) {
+          if (!Object.prototype.hasOwnProperty.call(selectedDates, dateValue)) {
+            continue;
+          }
+
+          if (dateValue !== selfDate) {
+            disableDates.push(dateValue);
+          }
+        }
+
+        pickerEntry.picker.set("disable", disableDates);
+      }
     }
 
     function getBookedSlotSetForDate(dateValue) {
@@ -214,6 +247,7 @@
 
       var rows = preferredDays.querySelectorAll(".eco-recurring-slot");
       var seen = {};
+      var seenDates = {};
       var hasError = false;
       var message = "";
 
@@ -227,6 +261,20 @@
         var rowStart = row.querySelector('select[name="eco_preferred_start_times[]"]');
         var rowEnd = row.querySelector('select[name="eco_preferred_end_times[]"]');
 
+        if (rowDate && rowDate.value) {
+          if (seenDates[rowDate.value]) {
+            row.classList.add("eco-recurring-slot-error");
+            seenDates[rowDate.value].classList.add("eco-recurring-slot-error");
+            hasError = true;
+            if (!message) {
+              message = data.duplicateRecurringDateMessage || "Preferred dates must be unique";
+            }
+            continue;
+          }
+
+          seenDates[rowDate.value] = row;
+        }
+
         if (!rowDate || !rowStart || !rowEnd || !rowDate.value || !rowStart.value || !rowEnd.value) {
           continue;
         }
@@ -236,7 +284,9 @@
           row.classList.add("eco-recurring-slot-error");
           seen[key].classList.add("eco-recurring-slot-error");
           hasError = true;
-          message = data.duplicateRecurringSlotMessage || "Duplicate preferred slot selected";
+          if (!message) {
+            message = data.duplicateRecurringSlotMessage || "Duplicate preferred slot selected";
+          }
           continue;
         }
 
@@ -245,7 +295,9 @@
         if (bookedSet[shortKey]) {
           row.classList.add("eco-recurring-slot-error");
           hasError = true;
-          message = data.bookedRecurringSlotMessage || "Selected slot is already booked";
+          if (!message) {
+            message = data.bookedRecurringSlotMessage || "Selected slot is already booked";
+          }
           continue;
         }
 
@@ -306,6 +358,7 @@
       row.appendChild(timeEndField);
 
       function onSlotChange() {
+        syncRecurringDateAvailability();
         populateRecurringEndOptions(row, true);
         validateRecurringSlots();
       }
@@ -314,7 +367,7 @@
       timeEndInput.addEventListener("change", validateRecurringSlots);
       dateInput.addEventListener("change", onSlotChange);
 
-      flatpickr(dateInput, {
+      var datePicker = flatpickr(dateInput, {
         dateFormat: "Y-m-d",
         minDate: start || "today",
         maxDate: end || null,
@@ -322,6 +375,13 @@
           onSlotChange();
         },
       });
+
+      recurringDatePickers.push({
+        input: dateInput,
+        picker: datePicker,
+      });
+
+      syncRecurringDateAvailability();
 
       preferredDays.appendChild(row);
     }

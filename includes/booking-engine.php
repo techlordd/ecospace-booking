@@ -137,6 +137,37 @@ function eco_validate_paid_slot_conflicts($product_id, $slots)
     return array('ok' => true);
 }
 
+function eco_booking_slots_from_payload($booking)
+{
+    if (!is_array($booking) || empty($booking['plan'])) {
+        return array();
+    }
+
+    if (eco_is_recurring_plan($booking['plan'])) {
+        return isset($booking['preferred_slots']) && is_array($booking['preferred_slots'])
+            ? $booking['preferred_slots']
+            : array();
+    }
+
+    if (
+        !empty($booking['start_date']) &&
+        isset($booking['start_time']) &&
+        isset($booking['end_time']) &&
+        $booking['start_time'] !== '' &&
+        $booking['end_time'] !== ''
+    ) {
+        return array(
+            array(
+                'date' => $booking['start_date'],
+                'start_time' => (int) $booking['start_time'],
+                'end_time' => (int) $booking['end_time'],
+            ),
+        );
+    }
+
+    return array();
+}
+
 function eco_get_product_booked_slot_map($product_id)
 {
     $all_meta = get_post_meta($product_id);
@@ -193,11 +224,12 @@ function eco_lock_paid_order_slots($order_id)
         }
 
         $booking = json_decode($raw_payload, true);
-        if (!is_array($booking) || empty($booking['plan']) || !eco_is_recurring_plan($booking['plan'])) {
+        if (!is_array($booking) || empty($booking['plan'])) {
             continue;
         }
 
-        if (empty($booking['preferred_slots']) || !is_array($booking['preferred_slots'])) {
+        $slots_to_lock = eco_booking_slots_from_payload($booking);
+        if (empty($slots_to_lock)) {
             continue;
         }
 
@@ -206,7 +238,7 @@ function eco_lock_paid_order_slots($order_id)
             continue;
         }
 
-        foreach ($booking['preferred_slots'] as $slot) {
+        foreach ($slots_to_lock as $slot) {
             if (!is_array($slot) || empty($slot['date']) || !isset($slot['start_time']) || !isset($slot['end_time'])) {
                 continue;
             }
@@ -361,6 +393,11 @@ function eco_validate_booking_payload($product_id)
         $payload['hours'] = $hours;
         $payload['price'] = eco_plan_price($plan, $hourly_rate, $hours);
 
+        $conflict_result = eco_validate_paid_slot_conflicts($product_id, eco_booking_slots_from_payload($payload));
+        if (!$conflict_result['ok']) {
+            return $conflict_result;
+        }
+
         return array('ok' => true, 'data' => $payload);
     }
 
@@ -369,6 +406,11 @@ function eco_validate_booking_payload($product_id)
         $payload['end_time'] = ECO_CLOSE_HOUR;
         $payload['hours'] = ECO_CLOSE_HOUR - ECO_OPEN_HOUR;
         $payload['price'] = eco_plan_price($plan, $hourly_rate, 0);
+
+        $conflict_result = eco_validate_paid_slot_conflicts($product_id, eco_booking_slots_from_payload($payload));
+        if (!$conflict_result['ok']) {
+            return $conflict_result;
+        }
 
         return array('ok' => true, 'data' => $payload);
     }
@@ -395,6 +437,7 @@ function eco_validate_booking_payload($product_id)
 
     $parsed_preferred = array();
     $parsed_slots = array();
+    $date_keys = array();
     $slot_keys = array();
     foreach ($preferred_days as $index => $day) {
         $d = eco_parse_date($day);
@@ -425,6 +468,11 @@ function eco_validate_booking_payload($product_id)
         }
 
         $formatted_day = $d->format('Y-m-d');
+        if (isset($date_keys[$formatted_day])) {
+            return array('ok' => false, 'message' => __('Preferred dates must be unique.', 'ecospace-booking'));
+        }
+        $date_keys[$formatted_day] = true;
+
         $slot_key = $formatted_day . '|' . $start_time . '|' . $end_time;
         if (isset($slot_keys[$slot_key])) {
             return array('ok' => false, 'message' => __('Preferred date and time combinations must be unique.', 'ecospace-booking'));
