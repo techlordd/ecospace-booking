@@ -10,6 +10,9 @@ const ECO_MONTHLY3_PRICE = 48000;
 const ECO_MONTHLY5_PRICE = 80000;
 const ECO_OPEN_HOUR = 9;
 const ECO_CLOSE_HOUR = 20;
+const ECO_RECURRING_SESSION_HOURS = 8;
+const ECO_RECURRING_START_MIN_HOUR = 9;
+const ECO_RECURRING_START_MAX_HOUR = 12;
 
 /**
  * Strict date parser for Y-m-d values.
@@ -46,6 +49,20 @@ function eco_sanitize_preferred_days($days)
         if ($value !== '') {
             $clean[] = $value;
         }
+    }
+
+    return $clean;
+}
+
+function eco_sanitize_preferred_start_times($times)
+{
+    if (!is_array($times)) {
+        return array();
+    }
+
+    $clean = array();
+    foreach ($times as $time) {
+        $clean[] = (int) sanitize_text_field(wp_unslash($time));
     }
 
     return $clean;
@@ -114,12 +131,14 @@ function eco_validate_booking_payload($product_id)
 
     $hourly_rate = (float) get_post_meta($product_id, '_eco_hourly_rate', true);
     $preferred_days = isset($_POST['eco_preferred_days']) ? eco_sanitize_preferred_days($_POST['eco_preferred_days']) : array();
+    $preferred_start_times = isset($_POST['eco_preferred_start_times']) ? eco_sanitize_preferred_start_times($_POST['eco_preferred_start_times']) : array();
 
     $payload = array(
         'plan' => $plan,
         'start_date' => $start_date->format('Y-m-d'),
         'end_date' => '',
         'preferred_days' => array(),
+        'preferred_slots' => array(),
         'start_time' => '',
         'end_time' => '',
         'hours' => 0,
@@ -177,12 +196,17 @@ function eco_validate_booking_payload($product_id)
         return array('ok' => false, 'message' => sprintf(__('Please select exactly %d preferred dates.', 'ecospace-booking'), $expected_days));
     }
 
+    if (count($preferred_start_times) !== $expected_days) {
+        return array('ok' => false, 'message' => sprintf(__('Please select a preferred start time for each of the %d preferred dates.', 'ecospace-booking'), $expected_days));
+    }
+
     if (count(array_unique($preferred_days)) !== count($preferred_days)) {
         return array('ok' => false, 'message' => __('Preferred dates must be unique.', 'ecospace-booking'));
     }
 
     $parsed_preferred = array();
-    foreach ($preferred_days as $day) {
+    $parsed_slots = array();
+    foreach ($preferred_days as $index => $day) {
         $d = eco_parse_date($day);
         if (!$d) {
             return array('ok' => false, 'message' => __('One or more preferred dates are invalid.', 'ecospace-booking'));
@@ -192,13 +216,46 @@ function eco_validate_booking_payload($product_id)
             return array('ok' => false, 'message' => __('Preferred dates must stay within the booking window.', 'ecospace-booking'));
         }
 
-        $parsed_preferred[] = $d->format('Y-m-d');
+        $start_time = (int) $preferred_start_times[$index];
+        if ($start_time < ECO_RECURRING_START_MIN_HOUR || $start_time > ECO_RECURRING_START_MAX_HOUR) {
+            return array('ok' => false, 'message' => __('Recurring start time must be between 9:00 AM and 12:00 PM.', 'ecospace-booking'));
+        }
+
+        $end_time = $start_time + ECO_RECURRING_SESSION_HOURS;
+        if ($end_time > ECO_CLOSE_HOUR) {
+            return array('ok' => false, 'message' => __('Recurring session exceeds closing time (8:00 PM).', 'ecospace-booking'));
+        }
+
+        $formatted_day = $d->format('Y-m-d');
+        $parsed_preferred[] = $formatted_day;
+        $parsed_slots[] = array(
+            'date' => $formatted_day,
+            'start_time' => $start_time,
+            'end_time' => $end_time,
+        );
     }
 
-    sort($parsed_preferred);
+    usort(
+        $parsed_slots,
+        static function ($a, $b) {
+            if ($a['date'] === $b['date']) {
+                return $a['start_time'] <=> $b['start_time'];
+            }
+
+            return strcmp($a['date'], $b['date']);
+        }
+    );
+
+    $parsed_preferred = array_map(
+        static function ($slot) {
+            return $slot['date'];
+        },
+        $parsed_slots
+    );
 
     $payload['end_date'] = $end_date->format('Y-m-d');
     $payload['preferred_days'] = $parsed_preferred;
+    $payload['preferred_slots'] = $parsed_slots;
     $payload['price'] = eco_plan_price($plan, $hourly_rate, 0);
 
     return array('ok' => true, 'data' => $payload);
@@ -228,4 +285,18 @@ function eco_plan_label($plan)
     );
 
     return $labels[$plan] ?? $plan;
+}
+
+function eco_format_preferred_slot($slot)
+{
+    if (!is_array($slot) || empty($slot['date']) || !isset($slot['start_time']) || !isset($slot['end_time'])) {
+        return '';
+    }
+
+    return sprintf(
+        '%s (%s - %s)',
+        $slot['date'],
+        eco_hour_label((int) $slot['start_time']),
+        eco_hour_label((int) $slot['end_time'])
+    );
 }

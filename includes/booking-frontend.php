@@ -39,6 +39,9 @@ function eco_enqueue_booking_assets()
             'monthly5Price' => ECO_MONTHLY5_PRICE,
             'openHour' => ECO_OPEN_HOUR,
             'closeHour' => ECO_CLOSE_HOUR,
+            'recurringSessionHours' => ECO_RECURRING_SESSION_HOURS,
+            'recurringStartMinHour' => ECO_RECURRING_START_MIN_HOUR,
+            'recurringStartMaxHour' => ECO_RECURRING_START_MAX_HOUR,
             'invalidHoursMessage' => __('Hours exceed closing time (8:00 PM)', 'ecospace-booking'),
         )
     );
@@ -84,6 +87,7 @@ function eco_booking_ui()
         </p>
 
         <div id="eco_preferred_days"></div>
+        <p id="eco_preferred_hint" class="eco-preferred-hint"></p>
 
         <div id="eco_hourly_fields">
             <p>
@@ -203,7 +207,22 @@ function eco_render_booking_item_data($item_data, $cart_item)
         );
     }
 
-    if (!empty($booking['preferred_days'])) {
+    if (!empty($booking['preferred_slots']) && is_array($booking['preferred_slots'])) {
+        $slot_lines = array();
+        foreach ($booking['preferred_slots'] as $slot) {
+            $line = eco_format_preferred_slot($slot);
+            if ($line !== '') {
+                $slot_lines[] = $line;
+            }
+        }
+
+        if (!empty($slot_lines)) {
+            $item_data[] = array(
+                'key' => __('Preferred Sessions', 'ecospace-booking'),
+                'value' => implode(', ', $slot_lines),
+            );
+        }
+    } elseif (!empty($booking['preferred_days'])) {
         $item_data[] = array(
             'key' => __('Preferred Dates', 'ecospace-booking'),
             'value' => implode(', ', $booking['preferred_days']),
@@ -234,7 +253,19 @@ function eco_add_booking_meta_to_order_item($item, $cart_item_key, $values)
         $item->add_meta_data(__('End Time', 'ecospace-booking'), eco_hour_label($booking['end_time']), true);
     }
 
-    if (!empty($booking['preferred_days'])) {
+    if (!empty($booking['preferred_slots']) && is_array($booking['preferred_slots'])) {
+        $slot_lines = array();
+        foreach ($booking['preferred_slots'] as $slot) {
+            $line = eco_format_preferred_slot($slot);
+            if ($line !== '') {
+                $slot_lines[] = $line;
+            }
+        }
+
+        if (!empty($slot_lines)) {
+            $item->add_meta_data(__('Preferred Sessions', 'ecospace-booking'), implode(', ', $slot_lines), true);
+        }
+    } elseif (!empty($booking['preferred_days'])) {
         $item->add_meta_data(__('Preferred Dates', 'ecospace-booking'), implode(', ', $booking['preferred_days']), true);
     }
 }
