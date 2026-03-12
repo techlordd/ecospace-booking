@@ -1,0 +1,30 @@
+.ecospace-booking-ui {
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.ecospace-booking-ui label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.ecospace-booking-ui input,
+.ecospace-booking-ui select {
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 10px;
+}
+
+.ecospace-booking-ui .eco-price-row {
+  margin-top: 12px;
+  font-size: 16px;
+}
+
+.ecospace-booking-ui .eco-capacity-row {
+  margin-top: 4px;
+  color: #444;
+}
