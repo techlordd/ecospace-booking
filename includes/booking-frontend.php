@@ -193,13 +193,6 @@ function eco_render_booking_item_data($item_data, $cart_item)
         'value' => $booking['start_date'],
     );
 
-    if (!empty($booking['end_date'])) {
-        $item_data[] = array(
-            'key' => __('End Date', 'ecospace-booking'),
-            'value' => $booking['end_date'],
-        );
-    }
-
     if (!empty($booking['start_time']) && !empty($booking['end_time'])) {
         $item_data[] = array(
             'key' => __('Time Window', 'ecospace-booking'),
@@ -243,10 +236,6 @@ function eco_add_booking_meta_to_order_item($item, $cart_item_key, $values)
 
     $item->add_meta_data(__('Booking Plan', 'ecospace-booking'), eco_plan_label($booking['plan']), true);
     $item->add_meta_data(__('Start Date', 'ecospace-booking'), $booking['start_date'], true);
-
-    if (!empty($booking['end_date'])) {
-        $item->add_meta_data(__('End Date', 'ecospace-booking'), $booking['end_date'], true);
-    }
 
     if (!empty($booking['start_time']) && !empty($booking['end_time'])) {
         $item->add_meta_data(__('Start Time', 'ecospace-booking'), eco_hour_label($booking['start_time']), true);

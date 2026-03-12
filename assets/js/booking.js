@@ -245,7 +245,7 @@
         return;
       }
 
-      endDateBlock.style.display = "block";
+      endDateBlock.style.display = "none";
       updateEndDateFromPlan();
 
       if (preferredHint) {
