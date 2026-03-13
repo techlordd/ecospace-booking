@@ -161,7 +161,19 @@
       for (var j = 0; j < recurringDatePickers.length; j += 1) {
         var pickerEntry = recurringDatePickers[j];
         var selfDate = pickerEntry.input.value;
-        var disableDates = [];
+        var disableDateMap = {};
+
+        for (var bookedDateValue in bookedRecurringSlots) {
+          if (!Object.prototype.hasOwnProperty.call(bookedRecurringSlots, bookedDateValue)) {
+            continue;
+          }
+
+          if (!bookedRecurringSlots[bookedDateValue] || !bookedRecurringSlots[bookedDateValue].length) {
+            continue;
+          }
+
+          disableDateMap[bookedDateValue] = true;
+        }
 
         for (var dateValue in selectedDates) {
           if (!Object.prototype.hasOwnProperty.call(selectedDates, dateValue)) {
@@ -169,9 +181,11 @@
           }
 
           if (dateValue !== selfDate) {
-            disableDates.push(dateValue);
+            disableDateMap[dateValue] = true;
           }
         }
+
+        var disableDates = Object.keys(disableDateMap);
 
         pickerEntry.picker.set("disable", disableDates);
       }
@@ -708,16 +722,20 @@
       }
 
       startDatePicker.set("disable", [function (dateObject) {
-        if (plan.value !== "daily") {
-          return false;
-        }
-
         var year = dateObject.getFullYear();
         var month = String(dateObject.getMonth() + 1).padStart(2, "0");
         var day = String(dateObject.getDate()).padStart(2, "0");
         var dateKey = year + "-" + month + "-" + day;
 
-        return getBookedRangesForDate(dateKey).length > 0;
+        if (plan.value === "daily") {
+          return getBookedRangesForDate(dateKey).length > 0;
+        }
+
+        if (isRecurringPlan(plan.value)) {
+          return getBookedRangesForDate(dateKey).length > 0;
+        }
+
+        return false;
       }]);
     }
 

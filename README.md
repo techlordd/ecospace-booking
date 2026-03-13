@@ -262,6 +262,7 @@ v15.3
 v15.4
 v15.5
 v15.6
+v15.7
 
 Each version improves:
 
@@ -301,6 +302,11 @@ Latest update (v15.6):
 
 - improved paid/completed slot locking reliability by removing stale in-request order-status caching
 - added checkout thankyou fallback locking hook so completed recurring sessions are persisted as unavailable for other users
+
+Latest update (v15.7):
+
+- recurring booking calendars now disable dates that already have booked slot records
+- prevents users from selecting previously occupied recurring dates directly from the date picker
 
 ---
 
