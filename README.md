@@ -261,6 +261,7 @@ v15.2
 v15.3
 v15.4
 v15.5
+v15.6
 
 Each version improves:
 
@@ -295,6 +296,11 @@ Latest update (v15.5):
 
 - fixed the Book now flow so AJAX availability refresh preserves the original WooCommerce add-to-cart submit button
 - prevents product pages from doing a plain reload when booking data is valid and should be added to cart
+
+Latest update (v15.6):
+
+- improved paid/completed slot locking reliability by removing stale in-request order-status caching
+- added checkout thankyou fallback locking hook so completed recurring sessions are persisted as unavailable for other users
 
 ---
 

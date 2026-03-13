@@ -136,26 +136,18 @@ function eco_get_booked_slots_for_date($product_id, $date)
 
 function eco_is_booking_blocking_order_status($order_id)
 {
-    static $status_cache = array();
-
     $order_id = (int) $order_id;
     if ($order_id <= 0) {
         return false;
     }
 
-    if (array_key_exists($order_id, $status_cache)) {
-        return $status_cache[$order_id];
-    }
-
     $order = wc_get_order($order_id);
     if (!$order) {
-        $status_cache[$order_id] = false;
         return false;
     }
 
     $blocking_statuses = array('processing', 'on-hold', 'completed');
-    $status_cache[$order_id] = in_array($order->get_status(), $blocking_statuses, true);
-    return $status_cache[$order_id];
+    return in_array($order->get_status(), $blocking_statuses, true);
 }
 
 function eco_do_slots_overlap($start_time, $end_time, $booked_start_time, $booked_end_time)

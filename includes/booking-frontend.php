@@ -331,6 +331,7 @@ add_action('woocommerce_payment_complete', 'eco_allocate_paid_recurring_slots', 
 add_action('woocommerce_order_status_processing', 'eco_allocate_paid_recurring_slots', 10, 1);
 add_action('woocommerce_order_status_on-hold', 'eco_allocate_paid_recurring_slots', 10, 1);
 add_action('woocommerce_order_status_completed', 'eco_allocate_paid_recurring_slots', 10, 1);
+add_action('woocommerce_thankyou', 'eco_allocate_paid_recurring_slots', 20, 1);
 function eco_allocate_paid_recurring_slots($order_id)
 {
     eco_lock_paid_order_slots($order_id);
