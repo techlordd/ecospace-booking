@@ -263,6 +263,7 @@ v15.4
 v15.5
 v15.6
 v15.7
+v15.8
 
 Each version improves:
 
@@ -307,6 +308,11 @@ Latest update (v15.7):
 
 - recurring booking calendars now disable dates that already have booked slot records
 - prevents users from selecting previously occupied recurring dates directly from the date picker
+
+Latest update (v15.8):
+
+- hourly booking calendar now disables dates that already contain booked slot ranges
+- fixed live availability refresh so it no longer resets non-hourly plan prices to 0 naira
 
 ---
 

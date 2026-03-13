@@ -192,8 +192,23 @@
     }
 
     function refreshRenderedAvailability() {
-      rebuildHourlyStartOptions();
-      updateHourlyPrice();
+      if (plan.value === "hourly") {
+        rebuildHourlyStartOptions();
+        updateHourlyPrice();
+      }
+
+      if (plan.value === "daily") {
+        price.textContent = formatPrice(prices.daily);
+      } else if (plan.value === "weekly3") {
+        price.textContent = formatPrice(prices.weekly3);
+      } else if (plan.value === "weekly5") {
+        price.textContent = formatPrice(prices.weekly5);
+      } else if (plan.value === "monthly3") {
+        price.textContent = formatPrice(prices.monthly3);
+      } else if (plan.value === "monthly5") {
+        price.textContent = formatPrice(prices.monthly5);
+      }
+
       syncStartDateAvailability();
 
       if (!isRecurringPlan(plan.value)) {
@@ -732,6 +747,10 @@
         }
 
         if (isRecurringPlan(plan.value)) {
+          return getBookedRangesForDate(dateKey).length > 0;
+        }
+
+        if (plan.value === "hourly") {
           return getBookedRangesForDate(dateKey).length > 0;
         }
 
