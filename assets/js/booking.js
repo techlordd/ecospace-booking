@@ -91,6 +91,7 @@
     var availabilityRefreshPromise = null;
     var lastAvailabilityHash = JSON.stringify(bookedRecurringSlots || {});
     var allowImmediateSubmit = false;
+    var pendingSubmitter = null;
     var slotIdCounter = 0;
     var recurringDatePickers = [];
     var prices = {
@@ -394,17 +395,32 @@
     function attemptSubmitAfterRefresh(event) {
       if (allowImmediateSubmit) {
         allowImmediateSubmit = false;
+        pendingSubmitter = null;
         return;
       }
 
       event.preventDefault();
+      pendingSubmitter = event.submitter || form.querySelector('[name="add-to-cart"]') || null;
+
       refreshAvailability(true).then(function () {
         if (!validateCurrentPlanAvailability(true)) {
+          pendingSubmitter = null;
           return;
         }
 
         allowImmediateSubmit = true;
-        form.requestSubmit();
+
+        if (typeof form.requestSubmit === "function") {
+          form.requestSubmit(pendingSubmitter || undefined);
+          return;
+        }
+
+        if (pendingSubmitter && typeof pendingSubmitter.click === "function") {
+          pendingSubmitter.click();
+          return;
+        }
+
+        form.submit();
       });
     }
 
