@@ -83,7 +83,14 @@
       monthly3: true,
       monthly5: true,
     };
+    var productId = Number(data.productId || 0);
+    var ajaxUrl = data.ajaxUrl || "";
+    var availabilityNonce = data.availabilityNonce || "";
+    var availabilityRefreshMs = Number(data.availabilityRefreshMs || 15000);
     var bookedRecurringSlots = data.bookedRecurringSlots || {};
+    var availabilityRefreshPromise = null;
+    var lastAvailabilityHash = JSON.stringify(bookedRecurringSlots || {});
+    var allowImmediateSubmit = false;
     var slotIdCounter = 0;
     var recurringDatePickers = [];
     var prices = {
@@ -121,6 +128,12 @@
 
       preferredError.textContent = message;
       preferredError.style.display = "block";
+    }
+
+    function applyAvailabilityPayload(nextBookedSlots) {
+      bookedRecurringSlots = nextBookedSlots || {};
+      data.bookedRecurringSlots = bookedRecurringSlots;
+      lastAvailabilityHash = JSON.stringify(bookedRecurringSlots);
     }
 
     function clearPreferredInputs() {
@@ -163,6 +176,79 @@
       }
     }
 
+    function refreshRenderedAvailability() {
+      rebuildHourlyStartOptions();
+      updateHourlyPrice();
+      syncStartDateAvailability();
+
+      if (!isRecurringPlan(plan.value)) {
+        return;
+      }
+
+      var rows = preferredDays.querySelectorAll(".eco-recurring-slot");
+      for (var i = 0; i < rows.length; i += 1) {
+        populateRecurringEndOptions(rows[i], true);
+      }
+
+      syncRecurringDateAvailability();
+      validateRecurringSlots();
+    }
+
+    function refreshAvailability(forceRefresh) {
+      var shouldForceRefresh = forceRefresh === true;
+
+      if (!productId || !ajaxUrl || !availabilityNonce) {
+        return Promise.resolve(bookedRecurringSlots);
+      }
+
+      if (availabilityRefreshPromise && !shouldForceRefresh) {
+        return availabilityRefreshPromise;
+      }
+
+      var requestBody = new URLSearchParams();
+      requestBody.set("action", "eco_refresh_booking_availability");
+      requestBody.set("product_id", String(productId));
+      requestBody.set("nonce", availabilityNonce);
+
+      availabilityRefreshPromise = fetch(ajaxUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        },
+        credentials: "same-origin",
+        body: requestBody.toString(),
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error("Availability request failed");
+          }
+
+          return response.json();
+        })
+        .then(function (payload) {
+          if (!payload || payload.success !== true || !payload.data) {
+            throw new Error("Invalid availability payload");
+          }
+
+          var nextBookedSlots = payload.data.bookedRecurringSlots || {};
+          var nextHash = JSON.stringify(nextBookedSlots);
+          if (shouldForceRefresh || nextHash !== lastAvailabilityHash) {
+            applyAvailabilityPayload(nextBookedSlots);
+            refreshRenderedAvailability();
+          }
+
+          return bookedRecurringSlots;
+        })
+        .catch(function () {
+          return bookedRecurringSlots;
+        })
+        .finally(function () {
+          availabilityRefreshPromise = null;
+        });
+
+      return availabilityRefreshPromise;
+    }
+
     function getBookedSlotSetForDate(dateValue) {
       var set = {};
       if (!dateValue || !bookedRecurringSlots[dateValue] || !bookedRecurringSlots[dateValue].length) {
@@ -174,6 +260,152 @@
       }
 
       return set;
+    }
+
+    function getBookedRangesForDate(dateValue) {
+      var ranges = [];
+      if (!dateValue || !bookedRecurringSlots[dateValue] || !bookedRecurringSlots[dateValue].length) {
+        return ranges;
+      }
+
+      for (var i = 0; i < bookedRecurringSlots[dateValue].length; i += 1) {
+        var parts = String(bookedRecurringSlots[dateValue][i]).split("|");
+        if (parts.length !== 2) {
+          continue;
+        }
+
+        ranges.push({
+          start: Number(parts[0] || 0),
+          end: Number(parts[1] || 0),
+        });
+      }
+
+      return ranges;
+    }
+
+    function doesRangeOverlap(dateValue, startHourValue, endHourValue) {
+      if (!dateValue || !startHourValue || !endHourValue) {
+        return false;
+      }
+
+      var startHourValueNumber = Number(startHourValue || 0);
+      var endHourValueNumber = Number(endHourValue || 0);
+      var ranges = getBookedRangesForDate(dateValue);
+
+      for (var i = 0; i < ranges.length; i += 1) {
+        if (startHourValueNumber < ranges[i].end && endHourValueNumber > ranges[i].start) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    function rebuildHourlyStartOptions() {
+      if (!startTime) {
+        return;
+      }
+
+      var selectedDate = startDate.value;
+      var previousStartValue = startTime.value;
+
+      startTime.innerHTML = "";
+      startTime.appendChild(createSelectPlaceholder("Select"));
+
+      for (var hour = openHour; hour <= closeHour - 1; hour += 1) {
+        var hasAvailableRange = false;
+
+        if (!selectedDate) {
+          hasAvailableRange = true;
+        } else {
+          for (var endHour = hour + 1; endHour <= closeHour; endHour += 1) {
+            if (!doesRangeOverlap(selectedDate, hour, endHour)) {
+              hasAvailableRange = true;
+              break;
+            }
+          }
+        }
+
+        if (hasAvailableRange) {
+          startTime.appendChild(createHourOption(hour));
+        }
+      }
+
+      if (previousStartValue && startTime.querySelector('option[value="' + previousStartValue + '"]')) {
+        startTime.value = previousStartValue;
+      }
+    }
+
+    function setHourlyConflictState(message) {
+      if (!hours) {
+        return;
+      }
+
+      if (typeof hours.setCustomValidity === "function") {
+        hours.setCustomValidity(message || "");
+      }
+    }
+
+    function validateCurrentPlanAvailability(showBrowserMessage) {
+      var shouldShowBrowserMessage = showBrowserMessage === true;
+
+      if (plan.value === "hourly") {
+        var selectedStartHour = Number(startTime.value || 0);
+        var selectedHours = Number(hours.value || 0);
+        if (!startDate.value || !selectedStartHour || !selectedHours) {
+          setHourlyConflictState("");
+          return true;
+        }
+
+        var selectedEndHour = selectedStartHour + selectedHours;
+        if (doesRangeOverlap(startDate.value, selectedStartHour, selectedEndHour)) {
+          var hourlyMessage = data.bookedTimeRangeMessage || "This time range is already booked.";
+          setHourlyConflictState(hourlyMessage);
+          if (shouldShowBrowserMessage && typeof hours.reportValidity === "function") {
+            hours.reportValidity();
+          }
+          return false;
+        }
+
+        setHourlyConflictState("");
+        return true;
+      }
+
+      if (plan.value === "daily") {
+        if (!startDate.value) {
+          return true;
+        }
+
+        if (doesRangeOverlap(startDate.value, openHour, closeHour)) {
+          if (shouldShowBrowserMessage) {
+            alert(data.dailyUnavailableMessage || "This date is no longer available for a daily booking.");
+          }
+          return false;
+        }
+      }
+
+      if (isRecurringPlan(plan.value)) {
+        return validateRecurringSlots();
+      }
+
+      return true;
+    }
+
+    function attemptSubmitAfterRefresh(event) {
+      if (allowImmediateSubmit) {
+        allowImmediateSubmit = false;
+        return;
+      }
+
+      event.preventDefault();
+      refreshAvailability(true).then(function () {
+        if (!validateCurrentPlanAvailability(true)) {
+          return;
+        }
+
+        allowImmediateSubmit = true;
+        form.requestSubmit();
+      });
     }
 
     function collectInFormSlotKeys(excludedRowId) {
@@ -221,13 +453,11 @@
       }
 
       var maxEnd = Math.min(selectedStart + recurringSessionHours, closeHour);
-      var bookedSet = getBookedSlotSetForDate(selectedDate);
       var inFormSet = collectInFormSlotKeys(rowId);
 
       for (var hour = selectedStart + 1; hour <= maxEnd; hour += 1) {
-        var shortKey = selectedStart + "|" + hour;
         var fullKey = selectedDate + "|" + selectedStart + "|" + hour;
-        if (selectedDate && (bookedSet[shortKey] || inFormSet[fullKey])) {
+        if (selectedDate && (doesRangeOverlap(selectedDate, selectedStart, hour) || inFormSet[fullKey])) {
           continue;
         }
 
@@ -290,9 +520,7 @@
           continue;
         }
 
-        var bookedSet = getBookedSlotSetForDate(rowDate.value);
-        var shortKey = rowStart.value + "|" + rowEnd.value;
-        if (bookedSet[shortKey]) {
+        if (doesRangeOverlap(rowDate.value, rowStart.value, rowEnd.value)) {
           row.classList.add("eco-recurring-slot-error");
           hasError = true;
           if (!message) {
@@ -358,6 +586,7 @@
       row.appendChild(timeEndField);
 
       function onSlotChange() {
+        refreshAvailability(false);
         syncRecurringDateAvailability();
         populateRecurringEndOptions(row, true);
         validateRecurringSlots();
@@ -431,6 +660,7 @@
       var selectedHours = Number(hours.value || 0);
       var hourlyRate = Number(data.hourlyRate || 0);
 
+      setHourlyConflictState("");
       endTime.value = "";
       if (!selectedStartHour || !selectedHours) {
         price.textContent = formatPrice(0);
@@ -445,8 +675,34 @@
         return;
       }
 
+      if (startDate.value && doesRangeOverlap(startDate.value, selectedStartHour, endHour)) {
+        setHourlyConflictState(data.bookedTimeRangeMessage || "This time range is already booked.");
+        endTime.value = "";
+        price.textContent = formatPrice(0);
+        return;
+      }
+
       endTime.value = formatHour(endHour);
       price.textContent = formatPrice(hourlyRate * selectedHours);
+    }
+
+    function syncStartDateAvailability() {
+      if (!startDatePicker || typeof startDatePicker.set !== "function") {
+        return;
+      }
+
+      startDatePicker.set("disable", [function (dateObject) {
+        if (plan.value !== "daily") {
+          return false;
+        }
+
+        var year = dateObject.getFullYear();
+        var month = String(dateObject.getMonth() + 1).padStart(2, "0");
+        var day = String(dateObject.getDate()).padStart(2, "0");
+        var dateKey = year + "-" + month + "-" + day;
+
+        return getBookedRangesForDate(dateKey).length > 0;
+      }]);
     }
 
     function applyPlanUI() {
@@ -457,11 +713,14 @@
       if (selectedPlan === "hourly") {
         endDateBlock.style.display = "none";
         byId("eco_hourly_fields").style.display = "block";
+        rebuildHourlyStartOptions();
         updateHourlyPrice();
+        syncStartDateAvailability();
         return;
       }
 
       byId("eco_hourly_fields").style.display = "none";
+      syncStartDateAvailability();
 
       if (selectedPlan === "daily") {
         endDateBlock.style.display = "none";
@@ -494,23 +753,37 @@
       validateRecurringSlots();
     }
 
-    plan.addEventListener("change", applyPlanUI);
+    plan.addEventListener("change", function () {
+      applyPlanUI();
+      refreshAvailability(true);
+    });
     startDate.addEventListener("change", function () {
+      rebuildHourlyStartOptions();
       updateEndDateFromPlan();
       applyPlanUI();
+      refreshAvailability(true);
     });
     startTime.addEventListener("change", updateHourlyPrice);
     hours.addEventListener("change", updateHourlyPrice);
 
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") {
+        refreshAvailability(true);
+      }
+    });
+
+    if (availabilityRefreshMs > 0) {
+      window.setInterval(function () {
+        refreshAvailability(false);
+      }, availabilityRefreshMs);
+    }
+
     if (form) {
-      form.addEventListener("submit", function (event) {
-        if (!validateRecurringSlots()) {
-          event.preventDefault();
-        }
-      });
+      form.addEventListener("submit", attemptSubmitAfterRefresh);
     }
 
     applyPlanUI();
+    refreshAvailability(true);
   }
 
   document.addEventListener("DOMContentLoaded", init);

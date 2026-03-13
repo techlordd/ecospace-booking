@@ -30,6 +30,10 @@ function eco_enqueue_booking_assets()
         'eco-booking-script',
         'ecoBookingData',
         array(
+            'productId' => (int) $product->get_id(),
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'availabilityNonce' => wp_create_nonce('eco_booking_availability_' . $product->get_id()),
+            'availabilityRefreshMs' => 15000,
             'currencySymbol' => get_woocommerce_currency_symbol(),
             'hourlyRate' => (float) get_post_meta($product->get_id(), '_eco_hourly_rate', true),
             'dailyPrice' => ECO_DAILY_PRICE,
@@ -44,9 +48,39 @@ function eco_enqueue_booking_assets()
             'recurringStartMaxHour' => ECO_RECURRING_START_MAX_HOUR,
             'bookedRecurringSlots' => eco_get_product_booked_slot_map($product->get_id()),
             'invalidHoursMessage' => __('Hours exceed closing time (8:00 PM)', 'ecospace-booking'),
+            'bookedTimeRangeMessage' => __('This time range is already booked. Please choose another time slot.', 'ecospace-booking'),
+            'dailyUnavailableMessage' => __('This date is no longer available for a daily booking.', 'ecospace-booking'),
+            'availabilityRefreshErrorMessage' => __('Could not refresh availability right now. Please try again.', 'ecospace-booking'),
             'duplicateRecurringDateMessage' => __('Preferred dates must be unique across sessions. Please pick a different date.', 'ecospace-booking'),
             'duplicateRecurringSlotMessage' => __('You selected the same preferred date and time more than once. Please choose a unique slot.', 'ecospace-booking'),
             'bookedRecurringSlotMessage' => __('This preferred date and time is already booked. Please select another slot.', 'ecospace-booking'),
+        )
+    );
+}
+
+add_action('wp_ajax_eco_refresh_booking_availability', 'eco_refresh_booking_availability');
+add_action('wp_ajax_nopriv_eco_refresh_booking_availability', 'eco_refresh_booking_availability');
+function eco_refresh_booking_availability()
+{
+    $product_id = isset($_POST['product_id']) ? absint(wp_unslash($_POST['product_id'])) : 0;
+    if ($product_id <= 0) {
+        wp_send_json_error(array('message' => __('Invalid booking product.', 'ecospace-booking')), 400);
+    }
+
+    check_ajax_referer('eco_booking_availability_' . $product_id, 'nonce');
+
+    $product = wc_get_product($product_id);
+    if (!$product instanceof WC_Product) {
+        wp_send_json_error(array('message' => __('Booking product not found.', 'ecospace-booking')), 404);
+    }
+
+    if (get_post_meta($product_id, '_eco_enable_booking', true) !== 'yes') {
+        wp_send_json_error(array('message' => __('Booking is not enabled for this product.', 'ecospace-booking')), 400);
+    }
+
+    wp_send_json_success(
+        array(
+            'bookedRecurringSlots' => eco_get_product_booked_slot_map($product_id),
         )
     );
 }
@@ -294,7 +328,33 @@ function eco_revalidate_slots_before_checkout($posted_data, $errors)
 }
 
 add_action('woocommerce_payment_complete', 'eco_allocate_paid_recurring_slots', 10, 1);
+add_action('woocommerce_order_status_processing', 'eco_allocate_paid_recurring_slots', 10, 1);
+add_action('woocommerce_order_status_on-hold', 'eco_allocate_paid_recurring_slots', 10, 1);
+add_action('woocommerce_order_status_completed', 'eco_allocate_paid_recurring_slots', 10, 1);
 function eco_allocate_paid_recurring_slots($order_id)
 {
     eco_lock_paid_order_slots($order_id);
+}
+
+add_action('woocommerce_order_status_refunded', 'eco_release_order_slots', 10, 1);
+add_action('woocommerce_order_status_cancelled', 'eco_release_order_slots', 10, 1);
+add_action('woocommerce_order_status_failed', 'eco_release_order_slots', 10, 1);
+function eco_release_order_slots($order_id)
+{
+    eco_unlock_order_slots($order_id);
+}
+
+add_action('woocommerce_order_status_changed', 'eco_handle_order_slot_status_transition', 10, 4);
+function eco_handle_order_slot_status_transition($order_id, $from_status, $to_status, $order)
+{
+    $to_status = is_string($to_status) ? $to_status : '';
+
+    if (in_array($to_status, array('processing', 'on-hold', 'completed'), true)) {
+        eco_lock_paid_order_slots($order_id);
+        return;
+    }
+
+    if (in_array($to_status, array('refunded', 'cancelled', 'failed'), true)) {
+        eco_unlock_order_slots($order_id);
+    }
 }

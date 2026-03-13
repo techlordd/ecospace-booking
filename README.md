@@ -255,12 +255,40 @@ v13.2
 v13.3  
 v14.0  
 v14.1
+v15.0
+v15.1
+v15.2
+v15.3
+v15.4
 
 Each version improves:
 
 - booking logic
 - UI behavior
 - validation rules
+
+Latest update (v15.1):
+
+- recurring slot availability now stays blocked after paid/completed orders
+- slot locking runs on payment complete and processing/completed order transitions
+- refunded/cancelled/failed orders now release their locked slots automatically
+- stale slots linked to non-blocking or missing orders are cleaned during reads
+
+Latest update (v15.2):
+
+- added admin product action to rebuild booked slot meta from valid WooCommerce orders
+- useful for repairing historical slot data if old bookings appear inconsistent
+
+Latest update (v15.3):
+
+- booking conflicts now block overlapping time ranges, not only exact same start and end times
+- hourly and recurring selectors now use booked slot ranges so previously booked time windows stop appearing selectable
+- daily bookings now mark already-booked dates as unavailable in the date picker
+
+Latest update (v15.4):
+
+- added live AJAX availability refresh on product pages so booking availability updates without a full page reload
+- booking form refreshes availability on plan/date changes, when the page regains focus, on a short interval, and immediately before submit
 
 ---
 

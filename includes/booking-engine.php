@@ -94,11 +94,76 @@ function eco_booked_slot_meta_key($date)
 
 function eco_get_booked_slots_for_date($product_id, $date)
 {
-    $stored = get_post_meta($product_id, eco_booked_slot_meta_key($date), true);
-    return is_array($stored) ? $stored : array();
+    $meta_key = eco_booked_slot_meta_key($date);
+    $stored = get_post_meta($product_id, $meta_key, true);
+    if (!is_array($stored) || empty($stored)) {
+        return array();
+    }
+
+    $filtered = array();
+    $did_cleanup = false;
+
+    foreach ($stored as $slot) {
+        if (!is_array($slot) || !isset($slot['start_time']) || !isset($slot['end_time'])) {
+            $did_cleanup = true;
+            continue;
+        }
+
+        $order_id = isset($slot['order_id']) ? (int) $slot['order_id'] : 0;
+        if (!eco_is_booking_blocking_order_status($order_id)) {
+            $did_cleanup = true;
+            continue;
+        }
+
+        $filtered[] = array(
+            'order_id' => $order_id,
+            'plan' => isset($slot['plan']) ? sanitize_text_field((string) $slot['plan']) : '',
+            'start_time' => (int) $slot['start_time'],
+            'end_time' => (int) $slot['end_time'],
+        );
+    }
+
+    if ($did_cleanup) {
+        if (empty($filtered)) {
+            delete_post_meta($product_id, $meta_key);
+        } else {
+            update_post_meta($product_id, $meta_key, array_values($filtered));
+        }
+    }
+
+    return $filtered;
 }
 
-function eco_is_exact_slot_booked($product_id, $date, $start_time, $end_time)
+function eco_is_booking_blocking_order_status($order_id)
+{
+    static $status_cache = array();
+
+    $order_id = (int) $order_id;
+    if ($order_id <= 0) {
+        return false;
+    }
+
+    if (array_key_exists($order_id, $status_cache)) {
+        return $status_cache[$order_id];
+    }
+
+    $order = wc_get_order($order_id);
+    if (!$order) {
+        $status_cache[$order_id] = false;
+        return false;
+    }
+
+    $blocking_statuses = array('processing', 'on-hold', 'completed');
+    $status_cache[$order_id] = in_array($order->get_status(), $blocking_statuses, true);
+    return $status_cache[$order_id];
+}
+
+function eco_do_slots_overlap($start_time, $end_time, $booked_start_time, $booked_end_time)
+{
+    return ((int) $start_time < (int) $booked_end_time) && ((int) $end_time > (int) $booked_start_time);
+}
+
+function eco_get_conflicting_booked_slot($product_id, $date, $start_time, $end_time)
 {
     $booked_slots = eco_get_booked_slots_for_date($product_id, $date);
     foreach ($booked_slots as $slot) {
@@ -106,12 +171,12 @@ function eco_is_exact_slot_booked($product_id, $date, $start_time, $end_time)
             continue;
         }
 
-        if ((int) $slot['start_time'] === (int) $start_time && (int) $slot['end_time'] === (int) $end_time) {
-            return true;
+        if (eco_do_slots_overlap($start_time, $end_time, $slot['start_time'], $slot['end_time'])) {
+            return $slot;
         }
     }
 
-    return false;
+    return null;
 }
 
 function eco_validate_paid_slot_conflicts($product_id, $slots)
@@ -121,14 +186,17 @@ function eco_validate_paid_slot_conflicts($product_id, $slots)
             continue;
         }
 
-        if (eco_is_exact_slot_booked($product_id, $slot['date'], $slot['start_time'], $slot['end_time'])) {
+        $conflicting_slot = eco_get_conflicting_booked_slot($product_id, $slot['date'], $slot['start_time'], $slot['end_time']);
+        if ($conflicting_slot) {
             return array(
                 'ok' => false,
                 'message' => sprintf(
-                    __('%s (%s - %s) is no longer available. Please choose a different time slot.', 'ecospace-booking'),
+                    __('%1$s (%2$s - %3$s) conflicts with an existing booking (%4$s - %5$s). Please choose a different time slot.', 'ecospace-booking'),
                     $slot['date'],
                     eco_hour_label($slot['start_time']),
-                    eco_hour_label($slot['end_time'])
+                    eco_hour_label($slot['end_time']),
+                    eco_hour_label($conflicting_slot['start_time']),
+                    eco_hour_label($conflicting_slot['end_time'])
                 ),
             );
         }
@@ -213,6 +281,10 @@ function eco_lock_paid_order_slots($order_id)
         return;
     }
 
+    if (!eco_is_booking_blocking_order_status($order_id)) {
+        return;
+    }
+
     if ($order->get_meta('_eco_slots_locked', true) === 'yes') {
         return;
     }
@@ -286,6 +358,183 @@ function eco_lock_paid_order_slots($order_id)
 
     $order->update_meta_data('_eco_slots_locked', 'yes');
     $order->save();
+}
+
+function eco_unlock_order_slots($order_id)
+{
+    $order = wc_get_order($order_id);
+    if (!$order) {
+        return;
+    }
+
+    foreach ($order->get_items() as $item) {
+        $raw_payload = $item->get_meta('_eco_booking_payload', true);
+        if (!is_string($raw_payload) || $raw_payload === '') {
+            continue;
+        }
+
+        $booking = json_decode($raw_payload, true);
+        if (!is_array($booking) || empty($booking['plan'])) {
+            continue;
+        }
+
+        $slots_to_unlock = eco_booking_slots_from_payload($booking);
+        if (empty($slots_to_unlock)) {
+            continue;
+        }
+
+        $product_id = (int) $item->get_product_id();
+        if ($product_id <= 0) {
+            continue;
+        }
+
+        foreach ($slots_to_unlock as $slot) {
+            if (!is_array($slot) || empty($slot['date']) || !isset($slot['start_time']) || !isset($slot['end_time'])) {
+                continue;
+            }
+
+            $date = $slot['date'];
+            $start_time = (int) $slot['start_time'];
+            $end_time = (int) $slot['end_time'];
+            $meta_key = eco_booked_slot_meta_key($date);
+            $booked_slots = get_post_meta($product_id, $meta_key, true);
+
+            if (!is_array($booked_slots) || empty($booked_slots)) {
+                continue;
+            }
+
+            $filtered_slots = array_values(
+                array_filter(
+                    $booked_slots,
+                    static function ($booked_slot) use ($order_id, $start_time, $end_time) {
+                        if (!is_array($booked_slot)) {
+                            return false;
+                        }
+
+                        return !(
+                            ((int) ($booked_slot['order_id'] ?? 0) === (int) $order_id) &&
+                            ((int) ($booked_slot['start_time'] ?? -1) === $start_time) &&
+                            ((int) ($booked_slot['end_time'] ?? -1) === $end_time)
+                        );
+                    }
+                )
+            );
+
+            if (empty($filtered_slots)) {
+                delete_post_meta($product_id, $meta_key);
+            } else {
+                update_post_meta($product_id, $meta_key, $filtered_slots);
+            }
+        }
+    }
+
+    $order->update_meta_data('_eco_slots_locked', 'no');
+    $order->save();
+}
+
+function eco_rebuild_product_booked_slots($product_id)
+{
+    $product_id = (int) $product_id;
+    if ($product_id <= 0) {
+        return array('dates' => 0, 'slots' => 0, 'orders' => 0);
+    }
+
+    $all_meta = get_post_meta($product_id);
+    $prefix = '_eco_booked_slots_';
+    foreach ($all_meta as $meta_key => $meta_values) {
+        if (strpos($meta_key, $prefix) !== 0) {
+            continue;
+        }
+
+        delete_post_meta($product_id, $meta_key);
+    }
+
+    $order_ids = wc_get_orders(
+        array(
+            'status' => array('processing', 'on-hold', 'completed'),
+            'limit' => -1,
+            'return' => 'ids',
+        )
+    );
+
+    $slot_map = array();
+    $orders_touched = 0;
+
+    foreach ($order_ids as $order_id) {
+        $order = wc_get_order($order_id);
+        if (!$order) {
+            continue;
+        }
+
+        $order_has_product_slot = false;
+
+        foreach ($order->get_items() as $item) {
+            if ((int) $item->get_product_id() !== $product_id) {
+                continue;
+            }
+
+            $raw_payload = $item->get_meta('_eco_booking_payload', true);
+            if (!is_string($raw_payload) || $raw_payload === '') {
+                continue;
+            }
+
+            $booking = json_decode($raw_payload, true);
+            if (!is_array($booking) || empty($booking['plan'])) {
+                continue;
+            }
+
+            $slots = eco_booking_slots_from_payload($booking);
+            if (empty($slots)) {
+                continue;
+            }
+
+            foreach ($slots as $slot) {
+                if (!is_array($slot) || empty($slot['date']) || !isset($slot['start_time']) || !isset($slot['end_time'])) {
+                    continue;
+                }
+
+                $date = $slot['date'];
+                $start_time = (int) $slot['start_time'];
+                $end_time = (int) $slot['end_time'];
+
+                if (!isset($slot_map[$date])) {
+                    $slot_map[$date] = array();
+                }
+
+                $slot_key = $order_id . '|' . $start_time . '|' . $end_time;
+                $slot_map[$date][$slot_key] = array(
+                    'order_id' => (int) $order_id,
+                    'plan' => sanitize_text_field((string) $booking['plan']),
+                    'start_time' => $start_time,
+                    'end_time' => $end_time,
+                );
+                $order_has_product_slot = true;
+            }
+        }
+
+        if ($order_has_product_slot) {
+            $orders_touched += 1;
+            $order->update_meta_data('_eco_slots_locked', 'yes');
+            $order->save();
+        }
+    }
+
+    $total_slots = 0;
+    foreach ($slot_map as $date => $slots_by_key) {
+        $slots = array_values($slots_by_key);
+        if (empty($slots)) {
+            continue;
+        }
+
+        update_post_meta($product_id, eco_booked_slot_meta_key($date), $slots);
+        $total_slots += count($slots);
+    }
+
+    return array(
+        'dates' => count($slot_map),
+        'slots' => $total_slots,
+        'orders' => $orders_touched,
+    );
 }
 
 function eco_plan_price($plan, $hourly_rate, $hours)
