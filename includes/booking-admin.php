@@ -367,10 +367,10 @@ function eco_build_workspace_booking_rows($filters)
             $b_key = $b['session_date'] . '|' . str_pad((string) $b['session_start'], 2, '0', STR_PAD_LEFT);
 
             if ($a_key === $b_key) {
-                return $a['order_id'] <=> $b['order_id'];
+                return $b['order_id'] <=> $a['order_id'];
             }
 
-            return strcmp($a_key, $b_key);
+            return strcmp($b_key, $a_key);
         }
     );
 

@@ -266,6 +266,7 @@ v15.7
 v15.8
 v16.0
 v16.1
+v16.2
 
 Each version improves:
 
@@ -327,6 +328,12 @@ Latest update (v16.1):
 - added one-click quick filter presets on the admin bookings page: Today, Next 2 Hours, and Action Needed
 - added bulk update actions so staff can select multiple booking rows and apply seat/status updates in one submission
 - added auto-refresh (45 seconds) with pause/resume control to keep front-desk booking data fresh during operations
+
+Latest update (v16.2):
+
+- recurring weekly and monthly session rows are now collapsible for a cleaner booking form interface
+- monthly session rows now default to collapsed state with quick Expand all and Collapse all controls
+- each recurring session header now shows a live summary of selected date and time and auto-expands rows with validation errors
 
 ---
 

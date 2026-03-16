@@ -539,7 +539,9 @@
         if (rowDate && rowDate.value) {
           if (seenDates[rowDate.value]) {
             row.classList.add("eco-recurring-slot-error");
+            setRecurringSlotCollapsed(row, false);
             seenDates[rowDate.value].classList.add("eco-recurring-slot-error");
+            setRecurringSlotCollapsed(seenDates[rowDate.value], false);
             hasError = true;
             if (!message) {
               message = data.duplicateRecurringDateMessage || "Preferred dates must be unique";
@@ -557,7 +559,9 @@
         var key = rowDate.value + "|" + rowStart.value + "|" + rowEnd.value;
         if (seen[key]) {
           row.classList.add("eco-recurring-slot-error");
+          setRecurringSlotCollapsed(row, false);
           seen[key].classList.add("eco-recurring-slot-error");
+          setRecurringSlotCollapsed(seen[key], false);
           hasError = true;
           if (!message) {
             message = data.duplicateRecurringSlotMessage || "Duplicate preferred slot selected";
@@ -567,6 +571,7 @@
 
         if (doesRangeOverlap(rowDate.value, rowStart.value, rowEnd.value)) {
           row.classList.add("eco-recurring-slot-error");
+          setRecurringSlotCollapsed(row, false);
           hasError = true;
           if (!message) {
             message = data.bookedRecurringSlotMessage || "Selected slot is already booked";
@@ -581,18 +586,111 @@
       return !hasError;
     }
 
-    function createRecurringSlotRow(slotLabel, start, end) {
+    function getRecurringSlotSummary(row) {
+      var rowDate = row.querySelector('input[name="eco_preferred_days[]"]');
+      var rowStart = row.querySelector('select[name="eco_preferred_start_times[]"]');
+      var rowEnd = row.querySelector('select[name="eco_preferred_end_times[]"]');
+      var parts = [];
+
+      if (rowDate && rowDate.value) {
+        parts.push(rowDate.value);
+      }
+
+      if (rowStart && rowStart.value && rowEnd && rowEnd.value) {
+        parts.push(formatHour(Number(rowStart.value || 0)) + " - " + formatHour(Number(rowEnd.value || 0)));
+      } else if (rowStart && rowStart.value) {
+        parts.push(formatHour(Number(rowStart.value || 0)));
+      }
+
+      return parts.length ? parts.join(" - ") : "Not set";
+    }
+
+    function refreshRecurringSlotHeader(row) {
+      var summary = row.querySelector(".eco-recurring-slot-summary");
+      if (!summary) {
+        return;
+      }
+
+      summary.textContent = getRecurringSlotSummary(row);
+    }
+
+    function setRecurringSlotCollapsed(row, collapsed) {
+      var isCollapsed = collapsed === true;
+      var body = row.querySelector(".eco-recurring-slot-body");
+      var toggle = row.querySelector(".eco-recurring-slot-toggle");
+
+      row.classList.toggle("eco-recurring-slot-collapsed", isCollapsed);
+      if (body) {
+        body.style.display = isCollapsed ? "none" : "";
+      }
+
+      if (toggle) {
+        toggle.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+      }
+    }
+
+    function createRecurringSlotControls(defaultCollapsed) {
+      var controls = document.createElement("div");
+      controls.className = "eco-recurring-controls";
+
+      var expandButton = document.createElement("button");
+      expandButton.type = "button";
+      expandButton.className = "eco-recurring-controls-button";
+      expandButton.textContent = "Expand all";
+
+      var collapseButton = document.createElement("button");
+      collapseButton.type = "button";
+      collapseButton.className = "eco-recurring-controls-button";
+      collapseButton.textContent = "Collapse all";
+
+      expandButton.addEventListener("click", function () {
+        var rows = preferredDays.querySelectorAll(".eco-recurring-slot");
+        for (var i = 0; i < rows.length; i += 1) {
+          setRecurringSlotCollapsed(rows[i], false);
+        }
+      });
+
+      collapseButton.addEventListener("click", function () {
+        var rows = preferredDays.querySelectorAll(".eco-recurring-slot");
+        for (var i = 0; i < rows.length; i += 1) {
+          setRecurringSlotCollapsed(rows[i], defaultCollapsed);
+        }
+      });
+
+      controls.appendChild(expandButton);
+      controls.appendChild(collapseButton);
+      preferredDays.appendChild(controls);
+    }
+
+    function createRecurringSlotRow(slotLabel, start, end, defaultCollapsed) {
       var row = document.createElement("div");
       row.className = "eco-recurring-slot";
       slotIdCounter += 1;
       row.setAttribute("data-slot-id", "slot-" + slotIdCounter);
 
-      if (slotLabel) {
-        var rowLabel = document.createElement("p");
-        rowLabel.className = "eco-recurring-slot-title";
-        rowLabel.innerHTML = "<strong>" + slotLabel + "</strong>";
-        row.appendChild(rowLabel);
-      }
+      var rowHeader = document.createElement("div");
+      rowHeader.className = "eco-recurring-slot-header";
+
+      var toggleButton = document.createElement("button");
+      toggleButton.type = "button";
+      toggleButton.className = "eco-recurring-slot-toggle";
+      toggleButton.setAttribute("aria-expanded", "true");
+
+      var rowTitle = document.createElement("span");
+      rowTitle.className = "eco-recurring-slot-title";
+      rowTitle.textContent = slotLabel || "Session";
+
+      var rowSummary = document.createElement("span");
+      rowSummary.className = "eco-recurring-slot-summary";
+      rowSummary.textContent = "Not set";
+
+      toggleButton.appendChild(rowTitle);
+      toggleButton.appendChild(rowSummary);
+      rowHeader.appendChild(toggleButton);
+      row.appendChild(rowHeader);
+
+      var rowBody = document.createElement("div");
+      rowBody.className = "eco-recurring-slot-body";
 
       var dateField = document.createElement("p");
       var dateLabel = document.createElement("label");
@@ -604,7 +702,7 @@
       dateInput.autocomplete = "off";
       dateField.appendChild(dateLabel);
       dateField.appendChild(dateInput);
-      row.appendChild(dateField);
+      rowBody.appendChild(dateField);
 
       var timeStartField = document.createElement("p");
       var timeStartLabel = document.createElement("label");
@@ -617,7 +715,7 @@
       }
       timeStartField.appendChild(timeStartLabel);
       timeStartField.appendChild(timeStartSelect);
-      row.appendChild(timeStartField);
+      rowBody.appendChild(timeStartField);
 
       var timeEndField = document.createElement("p");
       var timeEndLabel = document.createElement("label");
@@ -628,18 +726,27 @@
       timeEndInput.appendChild(createSelectPlaceholder("Select"));
       timeEndField.appendChild(timeEndLabel);
       timeEndField.appendChild(timeEndInput);
-      row.appendChild(timeEndField);
+      rowBody.appendChild(timeEndField);
+      row.appendChild(rowBody);
 
       function onSlotChange() {
         refreshAvailability(false);
         syncRecurringDateAvailability();
         populateRecurringEndOptions(row, true);
+        refreshRecurringSlotHeader(row);
         validateRecurringSlots();
       }
 
       timeStartSelect.addEventListener("change", onSlotChange);
-      timeEndInput.addEventListener("change", validateRecurringSlots);
+      timeEndInput.addEventListener("change", function () {
+        refreshRecurringSlotHeader(row);
+        validateRecurringSlots();
+      });
       dateInput.addEventListener("change", onSlotChange);
+
+      toggleButton.addEventListener("click", function () {
+        setRecurringSlotCollapsed(row, !row.classList.contains("eco-recurring-slot-collapsed"));
+      });
 
       var datePicker = flatpickr(dateInput, {
         dateFormat: "Y-m-d",
@@ -658,6 +765,8 @@
       syncRecurringDateAvailability();
 
       preferredDays.appendChild(row);
+      refreshRecurringSlotHeader(row);
+      setRecurringSlotCollapsed(row, defaultCollapsed === true);
     }
 
     function createPreferredInputs(count, labelPrefix) {
@@ -665,9 +774,13 @@
       var start = parseDate(startDate.value);
       var end = parseDate(endDate.value);
 
+      if (count > 1) {
+        createRecurringSlotControls(false);
+      }
+
       for (var i = 0; i < count; i += 1) {
         var slotLabel = labelPrefix ? labelPrefix + " " + (i + 1) : "Session " + (i + 1);
-        createRecurringSlotRow(slotLabel, start, end);
+        createRecurringSlotRow(slotLabel, start, end, false);
       }
     }
 
@@ -676,9 +789,11 @@
       var start = parseDate(startDate.value);
       var end = parseDate(endDate.value);
 
+      createRecurringSlotControls(true);
+
       for (var week = 1; week <= 4; week += 1) {
         for (var i = 0; i < perWeek; i += 1) {
-          createRecurringSlotRow("Week " + week + " - Session " + (i + 1), start, end);
+          createRecurringSlotRow("Week " + week + " - Session " + (i + 1), start, end, true);
         }
       }
     }
