@@ -765,6 +765,7 @@
 
       if (selectedPlan === "hourly") {
         endDateBlock.style.display = "none";
+        byId("eco_end_time_block").style.display = "";
         byId("eco_hourly_fields").style.display = "block";
         rebuildHourlyStartOptions();
         updateHourlyPrice();
@@ -777,11 +778,13 @@
 
       if (selectedPlan === "daily") {
         endDateBlock.style.display = "none";
+        byId("eco_end_time_block").style.display = "";
         endTime.value = formatHour(closeHour);
         price.textContent = formatPrice(prices.daily);
         return;
       }
 
+      byId("eco_end_time_block").style.display = "none";
       endDateBlock.style.display = "none";
       updateEndDateFromPlan();
 

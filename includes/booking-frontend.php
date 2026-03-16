@@ -144,7 +144,7 @@ function eco_booking_ui()
             </p>
         </div>
 
-        <p>
+        <p id="eco_end_time_block">
             <label for="eco_end_time"><?php esc_html_e('End Time', 'ecospace-booking'); ?></label>
             <input type="text" id="eco_end_time" name="eco_end_time" readonly>
         </p>

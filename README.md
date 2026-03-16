@@ -264,6 +264,8 @@ v15.5
 v15.6
 v15.7
 v15.8
+v16.0
+v16.1
 
 Each version improves:
 
@@ -313,6 +315,18 @@ Latest update (v15.8):
 
 - hourly booking calendar now disables dates that already contain booked slot ranges
 - fixed live availability refresh so it no longer resets non-hourly plan prices to 0 naira
+
+Latest update (v16.0):
+
+- added a new WooCommerce admin Workspace Bookings operations screen with table filters for date, plan, order status, payment status, and ops status
+- front desk staff can update booking lifecycle states (Booked, Assigned, Checked In, Completed, No Show, Cancelled) directly from each booking row
+- added seat assignment controls per booking row, including conflict checks against overlapping active bookings before assignment is saved
+
+Latest update (v16.1):
+
+- added one-click quick filter presets on the admin bookings page: Today, Next 2 Hours, and Action Needed
+- added bulk update actions so staff can select multiple booking rows and apply seat/status updates in one submission
+- added auto-refresh (45 seconds) with pause/resume control to keep front-desk booking data fresh during operations
 
 ---
 
