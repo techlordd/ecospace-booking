@@ -268,6 +268,7 @@ v16.0
 v16.1
 v16.2
 v16.3
+v16.4
 
 Each version improves:
 
@@ -341,6 +342,12 @@ Latest update (v16.3):
 - improved recurring session toggle header contrast so session title and summary remain clearly readable
 - fixed booking form mobile layout so inputs and selectors are fully visible and easier to use on small screens
 - added mobile-specific responsive rules for recurring controls and collapsed session headers
+
+Latest update (v16.4):
+
+- product page price now dynamically updates to reflect the selected booking plan price
+- syncs with WooCommerce price display in real-time as booking options change
+- restores original product price when plan selection is cleared
 
 ---
 

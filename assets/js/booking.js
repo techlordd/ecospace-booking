@@ -102,6 +102,24 @@
       monthly5: Number(data.monthly5Price || 0),
     };
 
+    // Sync WooCommerce product price display when booking plan price changes
+    var wcBdi = document.querySelector('.price .woocommerce-Price-amount bdi')
+             || document.querySelector('.price .woocommerce-Price-amount');
+    var wcBdiOrigHtml = wcBdi ? wcBdi.innerHTML : null;
+    if (wcBdi && price) {
+      var wcPriceObserver = new MutationObserver(function () {
+        var text = (price.textContent || '').trim();
+        var sym = (window.ecoBookingData || {}).currencySymbol || '';
+        if (text && text !== '0' && text !== sym + '0') {
+          var amount = sym ? text.slice(sym.length) : text;
+          wcBdi.innerHTML = '<span class="woocommerce-Price-currencySymbol">' + sym + '</span>' + amount;
+        } else if (wcBdiOrigHtml !== null) {
+          wcBdi.innerHTML = wcBdiOrigHtml;
+        }
+      });
+      wcPriceObserver.observe(price, { childList: true, characterData: true, subtree: true });
+    }
+
     var startDatePicker = flatpickr(startDate, {
       dateFormat: "Y-m-d",
       minDate: "today",
