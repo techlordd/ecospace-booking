@@ -267,6 +267,7 @@ v15.8
 v16.0
 v16.1
 v16.2
+v16.3
 
 Each version improves:
 
@@ -334,6 +335,12 @@ Latest update (v16.2):
 - recurring weekly and monthly session rows are now collapsible for a cleaner booking form interface
 - monthly session rows now default to collapsed state with quick Expand all and Collapse all controls
 - each recurring session header now shows a live summary of selected date and time and auto-expands rows with validation errors
+
+Latest update (v16.3):
+
+- improved recurring session toggle header contrast so session title and summary remain clearly readable
+- fixed booking form mobile layout so inputs and selectors are fully visible and easier to use on small screens
+- added mobile-specific responsive rules for recurring controls and collapsed session headers
 
 ---
 
