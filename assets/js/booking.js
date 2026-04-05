@@ -235,6 +235,22 @@
       setPreferredError("");
     }
 
+    function syncPlanFieldRequirements() {
+      var selectedPlan = plan ? plan.value : "";
+      var needsStartTime = selectedPlan === "hourly" || selectedPlan === "daily";
+      var needsHours = selectedPlan === "hourly";
+
+      if (startTime) {
+        startTime.disabled = !needsStartTime;
+        startTime.required = needsStartTime;
+      }
+
+      if (hours) {
+        hours.disabled = !needsHours;
+        hours.required = needsHours;
+      }
+    }
+
     function syncRecurringDateAvailability() {
       var selectedDates = {};
 
@@ -593,7 +609,7 @@
       }
 
       if (isRecurringPlan(plan.value)) {
-        return validateRecurringSlots();
+        return validateRecurringSlots(shouldShowBrowserMessage);
       }
 
       return true;
@@ -692,7 +708,7 @@
       }
     }
 
-    function validateRecurringSlots() {
+    function validateRecurringSlots(showIncompleteErrors) {
       if (!isRecurringPlan(plan.value)) {
         setPreferredError("");
         return true;
@@ -706,6 +722,7 @@
 
       for (var i = 0; i < rows.length; i += 1) {
         rows[i].classList.remove("eco-recurring-slot-error");
+        syncRecurringSlotState(rows[i]);
       }
 
       for (var j = 0; j < rows.length; j += 1) {
@@ -713,6 +730,16 @@
         var rowDate = row.querySelector('input[name="eco_preferred_days[]"]');
         var rowStart = row.querySelector('select[name="eco_preferred_start_times[]"]');
         var rowEnd = row.querySelector('select[name="eco_preferred_end_times[]"]');
+
+        if (showIncompleteErrors === true && (!rowDate || !rowStart || !rowEnd || !rowDate.value || !rowStart.value || !rowEnd.value)) {
+          row.classList.add("eco-recurring-slot-error");
+          setRecurringSlotCollapsed(row, false);
+          hasError = true;
+          if (!message) {
+            message = "Please complete the office date, time in, and time out for every office day before booking.";
+          }
+          continue;
+        }
 
         if (rowDate && rowDate.value) {
           if (seenDates[rowDate.value]) {
@@ -783,6 +810,21 @@
       return parts.length ? parts.join(" - ") : "Not set";
     }
 
+    function isRecurringSlotComplete(row) {
+      var rowDate = row.querySelector('input[name="eco_preferred_days[]"]');
+      var rowStart = row.querySelector('select[name="eco_preferred_start_times[]"]');
+      var rowEnd = row.querySelector('select[name="eco_preferred_end_times[]"]');
+
+      return !!(rowDate && rowDate.value && rowStart && rowStart.value && rowEnd && rowEnd.value);
+    }
+
+    function syncRecurringSlotState(row) {
+      var isComplete = isRecurringSlotComplete(row);
+
+      row.classList.toggle("eco-recurring-slot-complete", isComplete);
+      row.classList.toggle("eco-recurring-slot-incomplete", !isComplete);
+    }
+
     function refreshRecurringSlotHeader(row) {
       var summary = row.querySelector(".eco-recurring-slot-summary");
       if (!summary) {
@@ -790,6 +832,7 @@
       }
 
       summary.textContent = getRecurringSlotSummary(row);
+      syncRecurringSlotState(row);
     }
 
     function setRecurringSlotCollapsed(row, collapsed) {
@@ -1099,6 +1142,7 @@
         if (preferredHeading) {
           preferredHeading.style.display = "none";
         }
+        syncPlanFieldRequirements();
         price.textContent = formatPrice(0);
         return;
       }
@@ -1116,6 +1160,7 @@
         if (dailyHint) {
           dailyHint.style.display = "none";
         }
+        syncPlanFieldRequirements();
         syncHourlyFieldAttributes();
         rebuildHourlyStartOptions();
         updateHourlyPrice();
@@ -1139,6 +1184,7 @@
         if (dailyHint) {
           dailyHint.style.display = "";
         }
+        syncPlanFieldRequirements();
         rebuildDailyStartOptions();
         updateDailyTimeWindow();
         setDisplayedPlanPrice(selectedPlan);
@@ -1152,6 +1198,7 @@
       if (preferredHeading) {
         preferredHeading.style.display = "block";
       }
+      syncPlanFieldRequirements();
       endDateBlock.style.display = "none";
       updateEndDateFromPlan();
 
@@ -1205,6 +1252,7 @@
     }
 
     syncHourlyFieldAttributes();
+    syncPlanFieldRequirements();
     applyPlanUI();
     refreshAvailability(true);
   }

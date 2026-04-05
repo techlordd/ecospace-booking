@@ -53,6 +53,7 @@
   border: 1px solid #e3e3e3;
   border-radius: 6px;
   background: #fff;
+  transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .ecospace-booking-ui .eco-recurring-controls {
@@ -87,6 +88,7 @@
   cursor: pointer;
   margin: 0;
   color: #111827;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
 }
 
 .ecospace-booking-ui .eco-recurring-slot-title {
@@ -109,6 +111,27 @@
   background: #fcfcfd;
 }
 
+.ecospace-booking-ui .eco-recurring-slot-incomplete {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.ecospace-booking-ui .eco-recurring-slot-incomplete .eco-recurring-slot-toggle {
+  border-color: #f6c453;
+  background: #fff4cc;
+}
+
+.ecospace-booking-ui .eco-recurring-slot-complete {
+  border-color: #16a34a;
+  background: #f0fdf4;
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.08);
+}
+
+.ecospace-booking-ui .eco-recurring-slot-complete .eco-recurring-slot-toggle {
+  border-color: #86efac;
+  background: #dcfce7;
+}
+
 .ecospace-booking-ui .eco-preferred-error {
   margin: 6px 0 12px;
   color: #b42318;
@@ -118,6 +141,11 @@
 .ecospace-booking-ui .eco-recurring-slot-error {
   border-color: #b42318;
   background: #fff2f1;
+}
+
+.ecospace-booking-ui .eco-recurring-slot-error .eco-recurring-slot-toggle {
+  border-color: #fda29b;
+  background: #fee4e2;
 }
 
 @media (max-width: 768px) {

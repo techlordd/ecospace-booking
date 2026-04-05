@@ -275,6 +275,7 @@ v16.7
 v16.8
 v16.9
 v17.0
+v17.1
 
 Each version improves:
 
@@ -388,6 +389,11 @@ Latest update (v17.0):
 
 - fixed the recurring guidance heading so it remains visible when customers switch to weekly and monthly plans on the product page
 - updated the recurring instruction copy to read "Please select the days you're coming."
+
+Latest update (v17.1):
+
+- made the booking form enforce the necessary plan-specific fields before submit so users cannot book with missing time selections
+- added clear color separation for weekly and monthly recurring accordions so completed office days are visually distinct from incomplete ones
 
 ---
 
