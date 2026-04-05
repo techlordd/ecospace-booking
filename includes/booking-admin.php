@@ -3,6 +3,177 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+add_action('admin_head', 'eco_booking_admin_styles');
+function eco_booking_admin_styles()
+{
+    if (!is_admin() || !function_exists('get_current_screen')) {
+        return;
+    }
+
+    $screen = get_current_screen();
+    if (!$screen || $screen->id !== 'product') {
+        return;
+    }
+
+    echo '<style>
+        .eco-booking-panel {
+            padding: 0 12px 12px;
+            max-width: 960px;
+        }
+
+        .eco-booking-panel-description {
+            margin: 8px 0 0;
+            color: #50575e;
+        }
+
+        .eco-booking-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px 16px;
+        }
+
+        .eco-booking-plan-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .eco-booking-plan-card {
+            border: 1px solid #dcdcde;
+            border-radius: 8px;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .eco-booking-plan-card[open] {
+            border-color: #2271b1;
+            box-shadow: 0 0 0 1px rgba(34, 113, 177, 0.12);
+        }
+
+        .eco-booking-plan-card summary {
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 16px;
+            background: #f6f7f7;
+        }
+
+        .eco-booking-plan-card summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .eco-booking-plan-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1d2327;
+        }
+
+        .eco-booking-plan-subtitle {
+            display: block;
+            margin-top: 4px;
+            color: #50575e;
+            font-size: 12px;
+        }
+
+        .eco-booking-plan-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 74px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: #e7f5ea;
+            color: #126b2e;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .eco-booking-plan-status.is-disabled {
+            background: #f0f0f1;
+            color: #50575e;
+        }
+
+        .eco-booking-plan-body {
+            padding: 16px;
+        }
+
+        .eco-booking-field {
+            min-width: 0;
+        }
+
+        .eco-booking-field label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #1d2327;
+        }
+
+        .eco-booking-field input[type="text"],
+        .eco-booking-field input[type="number"],
+        .eco-booking-field select {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .eco-booking-field-description {
+            margin: 6px 0 0;
+            color: #646970;
+            font-size: 12px;
+        }
+
+        .eco-booking-checkbox-field {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .eco-booking-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 32px;
+            font-weight: 600;
+            color: #1d2327;
+        }
+
+        .eco-booking-inline-pair {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .eco-booking-inline-pair span {
+            color: #50575e;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 782px) {
+            .eco-booking-panel {
+                padding-left: 0;
+                padding-right: 0;
+            }
+
+            .eco-booking-plan-card summary {
+                flex-direction: column;
+            }
+
+            .eco-booking-inline-pair {
+                grid-template-columns: 1fr;
+            }
+
+            .eco-booking-inline-pair span {
+                text-align: left;
+            }
+        }
+    </style>';
+}
+
 function eco_admin_booking_hour_options()
 {
     $options = array();
@@ -20,6 +191,26 @@ function eco_render_booking_admin_select($field_name, $selected_value, $options)
         echo '<option value="' . esc_attr((string) $option_value) . '" ' . selected((string) $selected_value, (string) $option_value, false) . '>' . esc_html($option_label) . '</option>';
     }
     echo '</select>';
+}
+
+function eco_get_booking_admin_select_html($field_name, $selected_value, $options)
+{
+    ob_start();
+    eco_render_booking_admin_select($field_name, $selected_value, $options);
+    return (string) ob_get_clean();
+}
+
+function eco_render_booking_admin_field($label, $control_html, $description = '', $extra_class = '')
+{
+    echo '<div class="eco-booking-field ' . esc_attr($extra_class) . '">';
+    if ($label !== '') {
+        echo '<label>' . esc_html($label) . '</label>';
+    }
+    echo $control_html;
+    if ($description !== '') {
+        echo '<p class="eco-booking-field-description">' . esc_html($description) . '</p>';
+    }
+    echo '</div>';
 }
 
 add_action('woocommerce_product_options_general_product_data', 'eco_product_fields');
@@ -75,86 +266,123 @@ function eco_product_fields()
 
     echo '<div class="form-field">';
     echo '<label>' . esc_html__('Workspace Hours', 'ecospace-booking') . '</label>';
-    echo '<div style="padding:0 12px 12px;">';
-    echo '<table class="widefat striped" style="max-width:960px;">';
-    echo '<tbody>';
-    echo '<tr>';
-    echo '<th style="width:180px;">' . esc_html__('Opening Hour', 'ecospace-booking') . '</th>';
-    echo '<td>';
-    eco_render_booking_admin_select('_eco_open_hour', $config['open_hour'], $hour_options);
-    echo '</td>';
-    echo '<th style="width:180px;">' . esc_html__('Closing Hour', 'ecospace-booking') . '</th>';
-    echo '<td>';
-    eco_render_booking_admin_select('_eco_close_hour', $config['close_hour'], $hour_options);
-    echo '</td>';
-    echo '</tr>';
-    echo '<tr>';
-    echo '<th>' . esc_html__('Recurring Start Min', 'ecospace-booking') . '</th>';
-    echo '<td>';
-    eco_render_booking_admin_select('_eco_recurring_start_min_hour', $config['recurring_start_min_hour'], $hour_options);
-    echo '</td>';
-    echo '<th>' . esc_html__('Recurring Start Max', 'ecospace-booking') . '</th>';
-    echo '<td>';
-    eco_render_booking_admin_select('_eco_recurring_start_max_hour', $config['recurring_start_max_hour'], $hour_options);
-    echo '</td>';
-    echo '</tr>';
-    echo '<tr>';
-    echo '<th>' . esc_html__('Recurring Max Session Hours', 'ecospace-booking') . '</th>';
-    echo '<td colspan="3"><input type="number" name="_eco_recurring_session_hours" value="' . esc_attr((string) $config['recurring_session_hours']) . '" min="1" step="1" style="width:120px;"></td>';
-    echo '</tr>';
-    echo '</tbody>';
-    echo '</table>';
-    echo '<p class="description" style="margin-top:8px;">' . esc_html__('These values power validation and the product page selectors. If you leave them unchanged, the current booking behavior stays the same.', 'ecospace-booking') . '</p>';
+    echo '<div class="eco-booking-panel">';
+    echo '<div class="eco-booking-grid">';
+    eco_render_booking_admin_field(
+        __('Opening Hour', 'ecospace-booking'),
+        eco_get_booking_admin_select_html('_eco_open_hour', $config['open_hour'], $hour_options)
+    );
+    eco_render_booking_admin_field(
+        __('Closing Hour', 'ecospace-booking'),
+        eco_get_booking_admin_select_html('_eco_close_hour', $config['close_hour'], $hour_options)
+    );
+    eco_render_booking_admin_field(
+        __('Recurring Start Min', 'ecospace-booking'),
+        eco_get_booking_admin_select_html('_eco_recurring_start_min_hour', $config['recurring_start_min_hour'], $hour_options)
+    );
+    eco_render_booking_admin_field(
+        __('Recurring Start Max', 'ecospace-booking'),
+        eco_get_booking_admin_select_html('_eco_recurring_start_max_hour', $config['recurring_start_max_hour'], $hour_options)
+    );
+    eco_render_booking_admin_field(
+        __('Recurring Max Session Hours', 'ecospace-booking'),
+        '<input type="number" name="_eco_recurring_session_hours" value="' . esc_attr((string) $config['recurring_session_hours']) . '" min="1" step="1">'
+    );
+    echo '</div>';
+    echo '<p class="eco-booking-panel-description">' . esc_html__('These values power validation and the product page selectors. If you leave them unchanged, the current booking behavior stays the same.', 'ecospace-booking') . '</p>';
     echo '</div>';
     echo '</div>';
 
     echo '<div class="form-field">';
     echo '<label>' . esc_html__('Plan Configuration', 'ecospace-booking') . '</label>';
-    echo '<div style="padding:0 12px 12px;">';
-    echo '<table class="widefat striped" style="max-width:960px;">';
-    echo '<thead><tr>';
-    echo '<th>' . esc_html__('Plan', 'ecospace-booking') . '</th>';
-    echo '<th>' . esc_html__('Enabled', 'ecospace-booking') . '</th>';
-    echo '<th>' . esc_html__('Customer Label', 'ecospace-booking') . '</th>';
-    echo '<th>' . esc_html__('Price', 'ecospace-booking') . '</th>';
-    echo '<th>' . esc_html__('Dates / Hours', 'ecospace-booking') . '</th>';
-    echo '<th>' . esc_html__('Window / Time', 'ecospace-booking') . '</th>';
-    echo '</tr></thead><tbody>';
+    echo '<div class="eco-booking-panel">';
+    echo '<div class="eco-booking-plan-list">';
 
     foreach (eco_get_plan_order() as $plan_key) {
         $plan = $config['plans'][$plan_key];
-
-        echo '<tr>';
-        echo '<td><strong>' . esc_html(eco_plan_label($plan_key)) . '</strong></td>';
-        echo '<td><label><input type="checkbox" name="_eco_' . esc_attr($plan_key) . '_enabled" value="yes" ' . checked($plan['enabled'], 'yes', false) . '> ' . esc_html__('Show on product page', 'ecospace-booking') . '</label></td>';
-        echo '<td><input type="text" name="_eco_' . esc_attr($plan_key) . '_label" value="' . esc_attr((string) $plan['label']) . '" style="width:100%;"></td>';
+        $is_enabled = ($plan['enabled'] ?? 'no') === 'yes';
+        $status_class = $is_enabled ? 'eco-booking-plan-status' : 'eco-booking-plan-status is-disabled';
 
         if (($plan['type'] ?? '') === 'hourly') {
-            echo '<td><span class="description">' . esc_html__('Uses Hourly Rate', 'ecospace-booking') . '</span></td>';
-            echo '<td><label>' . esc_html__('Minimum default hours', 'ecospace-booking') . ' <input type="number" name="_eco_hourly_min_hours" value="' . esc_attr((string) $plan['min_hours']) . '" min="1" step="1" style="width:90px;"></label></td>';
-            echo '<td><span class="description">' . esc_html__('Customers can book within the workspace opening window.', 'ecospace-booking') . '</span></td>';
+            $subtitle = __('Uses the product hourly rate with a configurable minimum default duration.', 'ecospace-booking');
         } elseif (($plan['type'] ?? '') === 'daily') {
-            echo '<td><input type="number" name="_eco_daily_price" value="' . esc_attr(wc_format_localized_price((string) $plan['price'])) . '" min="0" step="0.01" style="width:120px;"></td>';
-            echo '<td><span class="description">' . esc_html__('Fixed daily booking block', 'ecospace-booking') . '</span></td>';
-            echo '<td style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">';
-            echo '<span>' . esc_html__('From', 'ecospace-booking') . '</span>';
-            eco_render_booking_admin_select('_eco_daily_start_hour', $plan['start_hour'], $hour_options);
-            echo '<span>' . esc_html__('to', 'ecospace-booking') . '</span>';
-            eco_render_booking_admin_select('_eco_daily_end_hour', $plan['end_hour'], $hour_options);
-            echo '</td>';
+            $subtitle = __('Fixed-duration daily booking with configurable start, end, and price.', 'ecospace-booking');
+        } else {
+            $subtitle = __('Recurring booking with configurable price, session count, and booking window.', 'ecospace-booking');
+        }
+
+        echo '<details class="eco-booking-plan-card"' . ($is_enabled ? ' open' : '') . '>';
+        echo '<summary>';
+        echo '<div>';
+        echo '<p class="eco-booking-plan-title">' . esc_html(eco_plan_label($plan_key)) . '</p>';
+        echo '<span class="eco-booking-plan-subtitle">' . esc_html($subtitle) . '</span>';
+        echo '</div>';
+        echo '<span class="' . esc_attr($status_class) . '">' . esc_html($is_enabled ? __('Enabled', 'ecospace-booking') : __('Disabled', 'ecospace-booking')) . '</span>';
+        echo '</summary>';
+        echo '<div class="eco-booking-plan-body">';
+        echo '<div class="eco-booking-grid">';
+
+        eco_render_booking_admin_field(
+            '',
+            '<label class="eco-booking-checkbox"><input type="checkbox" name="_eco_' . esc_attr($plan_key) . '_enabled" value="yes" ' . checked($plan['enabled'], 'yes', false) . '> ' . esc_html__('Show on product page', 'ecospace-booking') . '</label>',
+            __('Turn this plan on or off for customers.', 'ecospace-booking'),
+            'eco-booking-checkbox-field'
+        );
+
+        eco_render_booking_admin_field(
+            __('Customer Label', 'ecospace-booking'),
+            '<input type="text" name="_eco_' . esc_attr($plan_key) . '_label" value="' . esc_attr((string) $plan['label']) . '">'
+        );
+
+        if (($plan['type'] ?? '') === 'hourly') {
+            eco_render_booking_admin_field(
+                __('Pricing', 'ecospace-booking'),
+                '<div class="eco-booking-field-description" style="margin-top:0;">' . esc_html__('Uses Hourly Rate', 'ecospace-booking') . '</div>'
+            );
+            eco_render_booking_admin_field(
+                __('Minimum Default Hours', 'ecospace-booking'),
+                '<input type="number" name="_eco_hourly_min_hours" value="' . esc_attr((string) $plan['min_hours']) . '" min="1" step="1">',
+                __('Used as the default hourly duration when advanced configuration is enabled.', 'ecospace-booking')
+            );
+        } elseif (($plan['type'] ?? '') === 'daily') {
+            eco_render_booking_admin_field(
+                __('Price', 'ecospace-booking'),
+                '<input type="number" name="_eco_daily_price" value="' . esc_attr(wc_format_localized_price((string) $plan['price'])) . '" min="0" step="0.01">'
+            );
+            eco_render_booking_admin_field(
+                __('Booking Hours', 'ecospace-booking'),
+                '<div class="eco-booking-inline-pair">' .
+                    eco_get_booking_admin_select_html('_eco_daily_start_hour', $plan['start_hour'], $hour_options) .
+                    '<span>' . esc_html__('to', 'ecospace-booking') . '</span>' .
+                    eco_get_booking_admin_select_html('_eco_daily_end_hour', $plan['end_hour'], $hour_options) .
+                '</div>',
+                __('Customers booking the daily plan will use this fixed time block.', 'ecospace-booking')
+            );
         } else {
             $window_unit_label = (($plan['window_unit'] ?? 'days') === 'months') ? __('month(s)', 'ecospace-booking') : __('day(s)', 'ecospace-booking');
 
-            echo '<td><input type="number" name="_eco_' . esc_attr($plan_key) . '_price" value="' . esc_attr(wc_format_localized_price((string) $plan['price'])) . '" min="0" step="0.01" style="width:120px;"></td>';
-            echo '<td><label>' . esc_html__('Preferred sessions', 'ecospace-booking') . ' <input type="number" name="_eco_' . esc_attr($plan_key) . '_sessions" value="' . esc_attr((string) $plan['sessions']) . '" min="1" step="1" style="width:90px;"></label></td>';
-            echo '<td><label>' . esc_html__('Booking window', 'ecospace-booking') . ' <input type="number" name="_eco_' . esc_attr($plan_key) . '_window_value" value="' . esc_attr((string) $plan['window_value']) . '" min="1" step="1" style="width:90px;"></label> <span class="description">' . esc_html($window_unit_label) . '</span></td>';
+            eco_render_booking_admin_field(
+                __('Price', 'ecospace-booking'),
+                '<input type="number" name="_eco_' . esc_attr($plan_key) . '_price" value="' . esc_attr(wc_format_localized_price((string) $plan['price'])) . '" min="0" step="0.01">'
+            );
+            eco_render_booking_admin_field(
+                __('Preferred Sessions', 'ecospace-booking'),
+                '<input type="number" name="_eco_' . esc_attr($plan_key) . '_sessions" value="' . esc_attr((string) $plan['sessions']) . '" min="1" step="1">'
+            );
+            eco_render_booking_admin_field(
+                __('Booking Window', 'ecospace-booking'),
+                '<input type="number" name="_eco_' . esc_attr($plan_key) . '_window_value" value="' . esc_attr((string) $plan['window_value']) . '" min="1" step="1">',
+                $window_unit_label
+            );
         }
 
-        echo '</tr>';
+        echo '</div>';
+        echo '</div>';
+        echo '</details>';
     }
 
-    echo '</tbody></table>';
-    echo '<p class="description" style="margin-top:8px;">' . esc_html__('Use this table to control which plans appear on the product page, adjust labels, change prices, and set the number of preferred dates or hours without editing code.', 'ecospace-booking') . '</p>';
+    echo '</div>';
+    echo '<p class="eco-booking-panel-description">' . esc_html__('Use these plan cards to control which plans appear on the product page, adjust labels, change prices, and set the number of preferred dates or hours without editing code.', 'ecospace-booking') . '</p>';
     echo '</div>';
     echo '</div>';
 

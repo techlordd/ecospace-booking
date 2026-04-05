@@ -271,6 +271,7 @@ v16.3
 v16.4
 v16.5
 v16.6
+v16.7
 
 Each version improves:
 
@@ -362,6 +363,12 @@ Latest update (v16.6):
 - added a per-product advanced booking configuration toggle so existing live products keep legacy behavior until you explicitly opt in
 - legacy storefront price display and booked-date blocking now remain unchanged unless advanced configuration is enabled for that product
 - advanced settings can still be preconfigured in the admin before switching a product over
+
+Latest update (v16.7):
+
+- replaced the advanced booking configuration table with responsive plan cards in the WooCommerce product editor
+- reworked the workspace-hours controls into a grid layout so labels, prices, and time selectors no longer overlap in narrow admin panels
+- kept the advanced booking configuration behavior unchanged while improving the admin editing experience
 
 ---
 
