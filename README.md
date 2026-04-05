@@ -273,6 +273,7 @@ v16.5
 v16.6
 v16.7
 v16.8
+v16.9
 
 Each version improves:
 
@@ -376,6 +377,11 @@ Latest update (v16.8):
 - advanced daily plan now lets customers choose a start time on the product page while automatically enforcing a fixed access duration
 - added daily access hours plus allowed daily window controls to the advanced booking configuration in the WooCommerce product editor
 - legacy daily-plan behavior remains unchanged for products that do not enable advanced configuration
+
+Latest update (v16.9):
+
+- fixed recurring Expand all and Collapse all controls so they work consistently for weekly 3x and weekly 5x plans, not only monthly plans
+- Collapse all now always collapses every recurring office-day row instead of reusing the plan's default open state
 
 ---
 

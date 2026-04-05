@@ -834,7 +834,7 @@
       collapseButton.addEventListener("click", function () {
         var rows = preferredDays.querySelectorAll(".eco-recurring-slot");
         for (var i = 0; i < rows.length; i += 1) {
-          setRecurringSlotCollapsed(rows[i], defaultCollapsed);
+          setRecurringSlotCollapsed(rows[i], true);
         }
       });
 
