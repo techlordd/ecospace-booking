@@ -26,8 +26,9 @@ add_action('woocommerce_product_options_general_product_data', 'eco_product_fiel
 function eco_product_fields()
 {
     $product_id = get_the_ID();
-    $config = $product_id ? eco_get_product_booking_config($product_id) : eco_get_default_booking_config();
+    $config = $product_id ? eco_get_product_booking_config($product_id, true) : eco_get_default_booking_config();
     $hour_options = eco_admin_booking_hour_options();
+    $advanced_enabled = $product_id ? eco_is_advanced_booking_config_enabled($product_id) : false;
 
     echo '<div class="options_group">';
 
@@ -59,6 +60,16 @@ function eco_product_fields()
                 'min' => '0',
                 'step' => '1',
             ),
+        )
+    );
+
+    woocommerce_wp_checkbox(
+        array(
+            'id' => '_eco_use_advanced_config',
+            'label' => __('Use Advanced Booking Configuration', 'ecospace-booking'),
+            'description' => __('Enable the new configurable pricing, hours, plan visibility, and booking windows for this product. Leave this off to preserve the legacy live behavior.', 'ecospace-booking'),
+            'desc_tip' => true,
+            'value' => $advanced_enabled ? 'yes' : 'no',
         )
     );
 
@@ -176,6 +187,7 @@ add_action('woocommerce_process_product_meta', 'eco_save_fields');
 function eco_save_fields($post_id)
 {
     update_post_meta($post_id, '_eco_enable_booking', isset($_POST['_eco_enable_booking']) ? 'yes' : 'no');
+    update_post_meta($post_id, '_eco_use_advanced_config', isset($_POST['_eco_use_advanced_config']) ? 'yes' : 'no');
 
     if (isset($_POST['_eco_hourly_rate'])) {
         update_post_meta($post_id, '_eco_hourly_rate', wc_format_decimal(wp_unslash($_POST['_eco_hourly_rate'])));

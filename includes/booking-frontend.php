@@ -20,6 +20,7 @@ function eco_enqueue_booking_assets()
         return;
     }
 
+    $advanced_enabled = eco_is_advanced_booking_config_enabled($product->get_id());
     $booking_config = eco_get_product_booking_config($product->get_id());
 
     wp_enqueue_style('flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css', array(), '4.6.13');
@@ -37,10 +38,11 @@ function eco_enqueue_booking_assets()
             'availabilityNonce' => wp_create_nonce('eco_booking_availability_' . $product->get_id()),
             'availabilityRefreshMs' => 15000,
             'currencySymbol' => get_woocommerce_currency_symbol(),
+            'useAdvancedConfig' => $advanced_enabled,
             'hourlyRate' => (float) get_post_meta($product->get_id(), '_eco_hourly_rate', true),
             'plans' => $booking_config['plans'],
             'defaultPlan' => eco_get_default_booking_plan($product->get_id()),
-            'defaultPrice' => eco_get_default_booking_product_price($product->get_id()),
+            'defaultPrice' => $advanced_enabled ? eco_get_default_booking_product_price($product->get_id()) : 0,
             'openHour' => (int) $booking_config['open_hour'],
             'closeHour' => (int) $booking_config['close_hour'],
             'recurringSessionHours' => (int) $booking_config['recurring_session_hours'],
@@ -74,6 +76,10 @@ function eco_booking_product_price_html($price_html, $product)
     }
 
     if (get_post_meta($product->get_id(), '_eco_enable_booking', true) !== 'yes') {
+        return $price_html;
+    }
+
+    if (!eco_is_advanced_booking_config_enabled($product->get_id())) {
         return $price_html;
     }
 
@@ -126,6 +132,7 @@ function eco_booking_ui()
         return;
     }
 
+    $advanced_enabled = eco_is_advanced_booking_config_enabled($product->get_id());
     $booking_config = eco_get_product_booking_config($product->get_id());
     $enabled_plans = eco_get_enabled_booking_plans($product->get_id());
     if (empty($enabled_plans)) {
@@ -135,6 +142,8 @@ function eco_booking_ui()
 
     $default_plan = eco_get_default_booking_plan($product->get_id());
     $hourly_min_hours = (int) ($booking_config['plans']['hourly']['min_hours'] ?? 1);
+    $hourly_default_value = $advanced_enabled ? (string) $hourly_min_hours : '';
+    $initial_booking_price = $advanced_enabled ? eco_get_default_booking_product_price($product->get_id()) : 0;
     $seat_capacity = (int) get_post_meta($product->get_id(), '_eco_seat_capacity', true);
     ?>
     <div class="ecospace-booking-ui">
@@ -173,7 +182,7 @@ function eco_booking_ui()
             </p>
             <p>
                 <label for="eco_hours"><?php esc_html_e('Hours', 'ecospace-booking'); ?></label>
-                <input type="number" id="eco_hours" name="eco_hours" min="<?php echo esc_attr($hourly_min_hours); ?>" max="<?php echo esc_attr($booking_config['close_hour'] - $booking_config['open_hour']); ?>" step="1" value="<?php echo esc_attr($hourly_min_hours); ?>">
+                <input type="number" id="eco_hours" name="eco_hours" min="<?php echo esc_attr($hourly_min_hours); ?>" max="<?php echo esc_attr($booking_config['close_hour'] - $booking_config['open_hour']); ?>" step="1" value="<?php echo esc_attr($hourly_default_value); ?>">
             </p>
         </div>
 
@@ -184,7 +193,7 @@ function eco_booking_ui()
 
         <p class="eco-price-row">
             <strong><?php esc_html_e('Price:', 'ecospace-booking'); ?></strong>
-            <span id="eco_price"><?php echo esc_html(wp_strip_all_tags(wc_price(eco_get_default_booking_product_price($product->get_id())))); ?></span>
+            <span id="eco_price"><?php echo esc_html(wp_strip_all_tags(wc_price($initial_booking_price))); ?></span>
         </p>
 
         <?php if ($seat_capacity > 0) : ?>

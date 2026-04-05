@@ -270,6 +270,7 @@ v16.2
 v16.3
 v16.4
 v16.5
+v16.6
 
 Each version improves:
 
@@ -355,6 +356,12 @@ Latest update (v16.5):
 - moved booking plan prices, visible plan options, booking windows, fixed daily hours, and recurring session counts into product-level settings instead of code constants
 - added hourly minimum default hours so the product page can prefill the minimum booking duration and use that value as the displayed product price
 - kept existing booking behavior as the fallback default for products that have not been reconfigured yet
+
+Latest update (v16.6):
+
+- added a per-product advanced booking configuration toggle so existing live products keep legacy behavior until you explicitly opt in
+- legacy storefront price display and booked-date blocking now remain unchanged unless advanced configuration is enabled for that product
+- advanced settings can still be preconfigured in the admin before switching a product over
 
 ---
 

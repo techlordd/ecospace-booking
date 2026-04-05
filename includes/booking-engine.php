@@ -77,6 +77,16 @@ function eco_get_booking_meta_value($product_id, $meta_key, $default = '')
     return $stored === '' ? $default : $stored;
 }
 
+function eco_is_advanced_booking_config_enabled($product_id)
+{
+    $product_id = (int) $product_id;
+    if ($product_id <= 0) {
+        return false;
+    }
+
+    return get_post_meta($product_id, '_eco_use_advanced_config', true) === 'yes';
+}
+
 function eco_normalize_hour_value($value, $minimum, $maximum)
 {
     $value = (int) $value;
@@ -91,12 +101,16 @@ function eco_normalize_hour_value($value, $minimum, $maximum)
     return $value;
 }
 
-function eco_get_product_booking_config($product_id)
+function eco_get_product_booking_config($product_id, $ignore_advanced_toggle = false)
 {
     $defaults = eco_get_default_booking_config();
     $product_id = (int) $product_id;
 
     if ($product_id <= 0) {
+        return $defaults;
+    }
+
+    if (!$ignore_advanced_toggle && !eco_is_advanced_booking_config_enabled($product_id)) {
         return $defaults;
     }
 

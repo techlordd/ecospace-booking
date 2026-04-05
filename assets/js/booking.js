@@ -74,6 +74,7 @@
 
     var plans = data.plans || {};
     var defaultPlan = data.defaultPlan || "";
+    var useAdvancedConfig = data.useAdvancedConfig === true;
     var openHour = Number(data.openHour || 9);
     var closeHour = Number(data.closeHour || 20);
     var recurringSessionHours = Number(data.recurringSessionHours || 8);
@@ -141,7 +142,7 @@
       hours.min = String(minimumHours);
       hours.max = String(maximumHours);
 
-      if (!hours.value || Number(hours.value || 0) < minimumHours) {
+      if (useAdvancedConfig && (!hours.value || Number(hours.value || 0) < minimumHours)) {
         hours.value = String(minimumHours);
       }
     }
@@ -232,6 +233,20 @@
         var pickerEntry = recurringDatePickers[j];
         var selfDate = pickerEntry.input.value;
         var disableDateMap = {};
+
+        if (!useAdvancedConfig) {
+          for (var bookedDateValue in bookedRecurringSlots) {
+            if (!Object.prototype.hasOwnProperty.call(bookedRecurringSlots, bookedDateValue)) {
+              continue;
+            }
+
+            if (!bookedRecurringSlots[bookedDateValue] || !bookedRecurringSlots[bookedDateValue].length) {
+              continue;
+            }
+
+            disableDateMap[bookedDateValue] = true;
+          }
+        }
 
         for (var dateValue in selectedDates) {
           if (!Object.prototype.hasOwnProperty.call(selectedDates, dateValue)) {
@@ -896,18 +911,18 @@
       var minimumHours = getHourlyMinimumHours();
 
       syncHourlyFieldAttributes();
-      selectedHours = Number(hours.value || minimumHours);
+      selectedHours = Number(hours.value || (useAdvancedConfig ? minimumHours : 0));
 
       setHourlyConflictState("");
       endTime.value = "";
 
       if (!selectedHours) {
-        price.textContent = formatPrice(defaultPrice);
+        price.textContent = formatPrice(useAdvancedConfig ? defaultPrice : 0);
         return;
       }
 
       if (!selectedStartHour) {
-        price.textContent = formatPrice(hourlyRate * selectedHours);
+        price.textContent = formatPrice(useAdvancedConfig ? hourlyRate * selectedHours : 0);
         return;
       }
 
@@ -940,6 +955,10 @@
         var month = String(dateObject.getMonth() + 1).padStart(2, "0");
         var day = String(dateObject.getDate()).padStart(2, "0");
         var dateKey = year + "-" + month + "-" + day;
+
+        if (!useAdvancedConfig) {
+          return getBookedRangesForDate(dateKey).length > 0;
+        }
 
         if (plan.value === "daily") {
           var dailyPlan = getCurrentPlanConfig() || {};
