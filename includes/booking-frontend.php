@@ -144,6 +144,7 @@ function eco_booking_ui()
     $hourly_min_hours = (int) ($booking_config['plans']['hourly']['min_hours'] ?? 1);
     $hourly_default_value = $advanced_enabled ? (string) $hourly_min_hours : '';
     $initial_booking_price = $advanced_enabled ? eco_get_default_booking_product_price($product->get_id()) : 0;
+    $daily_session_hours = (int) ($booking_config['plans']['daily']['session_hours'] ?? 8);
     $seat_capacity = (int) get_post_meta($product->get_id(), '_eco_seat_capacity', true);
     ?>
     <div class="ecospace-booking-ui">
@@ -180,7 +181,7 @@ function eco_booking_ui()
                     <?php endfor; ?>
                 </select>
             </p>
-            <p>
+            <p id="eco_hours_field">
                 <label for="eco_hours"><?php esc_html_e('Hours', 'ecospace-booking'); ?></label>
                 <input type="number" id="eco_hours" name="eco_hours" min="<?php echo esc_attr($hourly_min_hours); ?>" max="<?php echo esc_attr($booking_config['close_hour'] - $booking_config['open_hour']); ?>" step="1" value="<?php echo esc_attr($hourly_default_value); ?>">
             </p>
@@ -195,6 +196,17 @@ function eco_booking_ui()
             <strong><?php esc_html_e('Price:', 'ecospace-booking'); ?></strong>
             <span id="eco_price"><?php echo esc_html(wp_strip_all_tags(wc_price($initial_booking_price))); ?></span>
         </p>
+
+        <?php if ($advanced_enabled) : ?>
+            <p id="eco_daily_hint" class="eco-preferred-hint" style="display:none;">
+                <?php
+                printf(
+                    esc_html__('Daily plan access is limited to %d hours from your selected start time.', 'ecospace-booking'),
+                    esc_html($daily_session_hours)
+                );
+                ?>
+            </p>
+        <?php endif; ?>
 
         <?php if ($seat_capacity > 0) : ?>
             <p class="eco-capacity-row">

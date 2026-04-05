@@ -306,7 +306,7 @@ function eco_product_fields()
         if (($plan['type'] ?? '') === 'hourly') {
             $subtitle = __('Uses the product hourly rate with a configurable minimum default duration.', 'ecospace-booking');
         } elseif (($plan['type'] ?? '') === 'daily') {
-            $subtitle = __('Fixed-duration daily booking with configurable start, end, and price.', 'ecospace-booking');
+            $subtitle = __('Flexible daily booking with a user-selected start time, fixed access hours, and a configurable allowed window.', 'ecospace-booking');
         } else {
             $subtitle = __('Recurring booking with configurable price, session count, and booking window.', 'ecospace-booking');
         }
@@ -350,13 +350,18 @@ function eco_product_fields()
                 '<input type="number" name="_eco_daily_price" value="' . esc_attr(wc_format_localized_price((string) $plan['price'])) . '" min="0" step="0.01">'
             );
             eco_render_booking_admin_field(
-                __('Booking Hours', 'ecospace-booking'),
+                __('Daily Access Hours', 'ecospace-booking'),
+                '<input type="number" name="_eco_daily_session_hours" value="' . esc_attr((string) ($plan['session_hours'] ?? 8)) . '" min="1" step="1">',
+                __('Customers can book this many hours within the daily plan window.', 'ecospace-booking')
+            );
+            eco_render_booking_admin_field(
+                __('Allowed Daily Window', 'ecospace-booking'),
                 '<div class="eco-booking-inline-pair">' .
                     eco_get_booking_admin_select_html('_eco_daily_start_hour', $plan['start_hour'], $hour_options) .
                     '<span>' . esc_html__('to', 'ecospace-booking') . '</span>' .
                     eco_get_booking_admin_select_html('_eco_daily_end_hour', $plan['end_hour'], $hour_options) .
                 '</div>',
-                __('Customers booking the daily plan will use this fixed time block.', 'ecospace-booking')
+                __('Customers choose a start time inside this range, and the daily plan ends after the configured access hours.', 'ecospace-booking')
             );
         } else {
             $window_unit_label = (($plan['window_unit'] ?? 'days') === 'months') ? __('month(s)', 'ecospace-booking') : __('day(s)', 'ecospace-booking');
@@ -442,6 +447,7 @@ function eco_save_fields($post_id)
         '_eco_hourly_min_hours',
         '_eco_daily_start_hour',
         '_eco_daily_end_hour',
+        '_eco_daily_session_hours',
         '_eco_weekly3_sessions',
         '_eco_weekly5_sessions',
         '_eco_monthly3_sessions',

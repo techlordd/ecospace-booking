@@ -68,7 +68,9 @@
     var preferredError = byId("eco_preferred_error");
     var startTime = byId("eco_start_time");
     var hours = byId("eco_hours");
+    var hoursField = byId("eco_hours_field");
     var endTime = byId("eco_end_time");
+    var dailyHint = byId("eco_daily_hint");
     var price = byId("eco_price");
     var form = root.closest("form");
 
@@ -111,6 +113,21 @@
     function getHourlyMinimumHours() {
       var hourlyPlan = getPlanConfig("hourly") || {};
       return Math.max(1, Number(hourlyPlan.min_hours || 1));
+    }
+
+    function getDailySessionHours() {
+      var dailyPlan = getPlanConfig("daily") || {};
+      return Math.max(1, Number(dailyPlan.session_hours || 8));
+    }
+
+    function getDailyStartMinHour() {
+      var dailyPlan = getPlanConfig("daily") || {};
+      return Number(dailyPlan.start_hour || openHour);
+    }
+
+    function getDailyEndMaxHour() {
+      var dailyPlan = getPlanConfig("daily") || {};
+      return Number(dailyPlan.end_hour || closeHour);
     }
 
     function getPlanPrice(planKey) {
@@ -430,6 +447,66 @@
       }
     }
 
+    function rebuildDailyStartOptions() {
+      if (!startTime) {
+        return;
+      }
+
+      var selectedDate = startDate.value;
+      var previousStartValue = startTime.value;
+      var sessionHours = getDailySessionHours();
+      var windowStart = getDailyStartMinHour();
+      var windowEnd = getDailyEndMaxHour();
+      var latestStart = windowEnd - sessionHours;
+
+      startTime.innerHTML = "";
+      startTime.appendChild(createSelectPlaceholder("Select"));
+
+      for (var hour = windowStart; hour <= latestStart; hour += 1) {
+        if (!selectedDate || !doesRangeOverlap(selectedDate, hour, hour + sessionHours)) {
+          startTime.appendChild(createHourOption(hour));
+        }
+      }
+
+      if (previousStartValue && startTime.querySelector('option[value="' + previousStartValue + '"]')) {
+        startTime.value = previousStartValue;
+      }
+    }
+
+    function updateDailyTimeWindow() {
+      var selectedStartHour = Number(startTime.value || 0);
+      var sessionHours = getDailySessionHours();
+      var windowEnd = getDailyEndMaxHour();
+
+      endTime.value = "";
+      if (!selectedStartHour) {
+        return;
+      }
+
+      if (selectedStartHour + sessionHours > windowEnd) {
+        startTime.value = "";
+        return;
+      }
+
+      endTime.value = formatHour(selectedStartHour + sessionHours);
+      setDisplayedPlanPrice("daily");
+    }
+
+    function hasAvailableDailyWindow(dateValue) {
+      var sessionHours = getDailySessionHours();
+      var windowStart = getDailyStartMinHour();
+      var windowEnd = getDailyEndMaxHour();
+      var latestStart = windowEnd - sessionHours;
+
+      for (var hour = windowStart; hour <= latestStart; hour += 1) {
+        if (!doesRangeOverlap(dateValue, hour, hour + sessionHours)) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
     function setHourlyConflictState(message) {
       if (!hours) {
         return;
@@ -437,6 +514,16 @@
 
       if (typeof hours.setCustomValidity === "function") {
         hours.setCustomValidity(message || "");
+      }
+    }
+
+    function setStartTimeValidity(message) {
+      if (!startTime) {
+        return;
+      }
+
+      if (typeof startTime.setCustomValidity === "function") {
+        startTime.setCustomValidity(message || "");
       }
     }
 
@@ -466,17 +553,42 @@
       }
 
       if (plan.value === "daily") {
-        var dailyPlan = getCurrentPlanConfig() || {};
         if (!startDate.value) {
           return true;
         }
 
-        if (doesRangeOverlap(startDate.value, Number(dailyPlan.start_hour || openHour), Number(dailyPlan.end_hour || closeHour))) {
+        if (!useAdvancedConfig) {
+          var legacyDailyPlan = getCurrentPlanConfig() || {};
+          if (doesRangeOverlap(startDate.value, Number(legacyDailyPlan.start_hour || openHour), Number(legacyDailyPlan.end_hour || closeHour))) {
+            if (shouldShowBrowserMessage) {
+              alert(data.dailyUnavailableMessage || "This date is no longer available for a daily booking.");
+            }
+            return false;
+          }
+
+          return true;
+        }
+
+        var dailyStartHour = Number(startTime.value || 0);
+        var dailySessionHours = getDailySessionHours();
+        if (!dailyStartHour) {
+          setStartTimeValidity("Please select a start time for the daily plan.");
+          if (shouldShowBrowserMessage && typeof startTime.reportValidity === "function") {
+            startTime.reportValidity();
+          }
+          return false;
+        }
+
+        setStartTimeValidity("");
+
+        if (doesRangeOverlap(startDate.value, dailyStartHour, dailyStartHour + dailySessionHours)) {
           if (shouldShowBrowserMessage) {
             alert(data.dailyUnavailableMessage || "This date is no longer available for a daily booking.");
           }
           return false;
         }
+
+        return true;
       }
 
       if (isRecurringPlan(plan.value)) {
@@ -961,8 +1073,7 @@
         }
 
         if (plan.value === "daily") {
-          var dailyPlan = getCurrentPlanConfig() || {};
-          return doesRangeOverlap(dateKey, Number(dailyPlan.start_hour || openHour), Number(dailyPlan.end_hour || closeHour));
+          return !hasAvailableDailyWindow(dateKey);
         }
 
         if (plan.value === "hourly") {
@@ -992,6 +1103,12 @@
         endDateBlock.style.display = "none";
         byId("eco_end_time_block").style.display = "";
         byId("eco_hourly_fields").style.display = "block";
+        if (hoursField) {
+          hoursField.style.display = "";
+        }
+        if (dailyHint) {
+          dailyHint.style.display = "none";
+        }
         syncHourlyFieldAttributes();
         rebuildHourlyStartOptions();
         updateHourlyPrice();
@@ -1005,12 +1122,27 @@
       if (selectedPlan === "daily") {
         endDateBlock.style.display = "none";
         byId("eco_end_time_block").style.display = "";
-        endTime.value = formatHour(Number(selectedPlanConfig.end_hour || closeHour));
+        byId("eco_hourly_fields").style.display = useAdvancedConfig ? "block" : "none";
+        if (hoursField) {
+          hoursField.style.display = "none";
+        }
+        if (dailyHint) {
+          dailyHint.style.display = useAdvancedConfig ? "" : "none";
+        }
+        if (useAdvancedConfig) {
+          rebuildDailyStartOptions();
+          updateDailyTimeWindow();
+        } else {
+          endTime.value = formatHour(Number(selectedPlanConfig.end_hour || closeHour));
+        }
         setDisplayedPlanPrice(selectedPlan);
         return;
       }
 
       byId("eco_end_time_block").style.display = "none";
+      if (dailyHint) {
+        dailyHint.style.display = "none";
+      }
       endDateBlock.style.display = "none";
       updateEndDateFromPlan();
 
@@ -1030,11 +1162,21 @@
     });
     startDate.addEventListener("change", function () {
       rebuildHourlyStartOptions();
+      rebuildDailyStartOptions();
       updateEndDateFromPlan();
       applyPlanUI();
       refreshAvailability(true);
     });
-    startTime.addEventListener("change", updateHourlyPrice);
+    startTime.addEventListener("change", function () {
+      setStartTimeValidity("");
+      if (plan.value === "daily") {
+        updateDailyTimeWindow();
+        validateCurrentPlanAvailability(false);
+        return;
+      }
+
+      updateHourlyPrice();
+    });
     hours.addEventListener("change", updateHourlyPrice);
 
     document.addEventListener("visibilitychange", function () {

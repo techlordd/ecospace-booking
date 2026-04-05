@@ -272,6 +272,7 @@ v16.4
 v16.5
 v16.6
 v16.7
+v16.8
 
 Each version improves:
 
@@ -369,6 +370,12 @@ Latest update (v16.7):
 - replaced the advanced booking configuration table with responsive plan cards in the WooCommerce product editor
 - reworked the workspace-hours controls into a grid layout so labels, prices, and time selectors no longer overlap in narrow admin panels
 - kept the advanced booking configuration behavior unchanged while improving the admin editing experience
+
+Latest update (v16.8):
+
+- advanced daily plan now lets customers choose a start time on the product page while automatically enforcing a fixed access duration
+- added daily access hours plus allowed daily window controls to the advanced booking configuration in the WooCommerce product editor
+- legacy daily-plan behavior remains unchanged for products that do not enable advanced configuration
 
 ---
 

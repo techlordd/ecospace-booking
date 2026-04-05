@@ -30,6 +30,7 @@ function eco_get_default_booking_config()
                 'price' => 4800,
                 'start_hour' => 9,
                 'end_hour' => 20,
+                'session_hours' => 8,
             ),
             'weekly3' => array(
                 'enabled' => 'yes',
@@ -176,6 +177,13 @@ function eco_get_product_booking_config($product_id, $ignore_advanced_toggle = f
                 eco_get_booking_meta_value($product_id, '_eco_daily_end_hour', $plan_defaults['end_hour']),
                 $plan_config['start_hour'] + 1,
                 $close_hour
+            );
+            $plan_config['session_hours'] = max(
+                1,
+                min(
+                    $plan_config['end_hour'] - $plan_config['start_hour'],
+                    absint(eco_get_booking_meta_value($product_id, '_eco_daily_session_hours', $plan_defaults['session_hours']))
+                )
             );
         } else {
             $plan_config['price'] = max(0, (float) eco_get_booking_meta_value($product_id, '_eco_' . $plan_key . '_price', $plan_defaults['price']));
@@ -899,8 +907,27 @@ function eco_validate_booking_payload($product_id)
     }
 
     if ($plan === 'daily') {
-        $payload['start_time'] = (int) ($daily_plan['start_hour'] ?? $config['open_hour']);
-        $payload['end_time'] = (int) ($daily_plan['end_hour'] ?? $config['close_hour']);
+        if (eco_is_advanced_booking_config_enabled($product_id)) {
+            $daily_window_start = (int) ($daily_plan['start_hour'] ?? $config['open_hour']);
+            $daily_window_end = (int) ($daily_plan['end_hour'] ?? $config['close_hour']);
+            $daily_session_hours = max(1, (int) ($daily_plan['session_hours'] ?? 8));
+            $start_time = isset($_POST['eco_start_time']) ? (int) sanitize_text_field(wp_unslash($_POST['eco_start_time'])) : 0;
+
+            if ($start_time < $daily_window_start || $start_time > ($daily_window_end - $daily_session_hours)) {
+                return array('ok' => false, 'message' => __('Please select a valid daily start time.', 'ecospace-booking'));
+            }
+
+            $payload['start_time'] = $start_time;
+            $payload['end_time'] = $start_time + $daily_session_hours;
+
+            if ($payload['end_time'] > $daily_window_end || $payload['end_time'] > $config['close_hour']) {
+                return array('ok' => false, 'message' => sprintf(__('Daily access must end before %s.', 'ecospace-booking'), eco_hour_label(min($daily_window_end, $config['close_hour']))));
+            }
+        } else {
+            $payload['start_time'] = (int) ($daily_plan['start_hour'] ?? $config['open_hour']);
+            $payload['end_time'] = (int) ($daily_plan['end_hour'] ?? $config['close_hour']);
+        }
+
         $payload['hours'] = $payload['end_time'] - $payload['start_time'];
         $payload['price'] = eco_plan_price($plan, $hourly_rate, 0, $product_id);
 
