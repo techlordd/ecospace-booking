@@ -269,6 +269,7 @@ v16.1
 v16.2
 v16.3
 v16.4
+v16.5
 
 Each version improves:
 
@@ -348,6 +349,12 @@ Latest update (v16.4):
 - product page price now dynamically updates to reflect the selected booking plan price
 - syncs with WooCommerce price display in real-time as booking options change
 - restores original product price when plan selection is cleared
+
+Latest update (v16.5):
+
+- moved booking plan prices, visible plan options, booking windows, fixed daily hours, and recurring session counts into product-level settings instead of code constants
+- added hourly minimum default hours so the product page can prefill the minimum booking duration and use that value as the displayed product price
+- kept existing booking behavior as the fallback default for products that have not been reconfigured yet
 
 ---
 

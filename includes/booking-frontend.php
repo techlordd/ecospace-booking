@@ -20,6 +20,8 @@ function eco_enqueue_booking_assets()
         return;
     }
 
+    $booking_config = eco_get_product_booking_config($product->get_id());
+
     wp_enqueue_style('flatpickr', 'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css', array(), '4.6.13');
     wp_enqueue_style('eco-booking-style', ECO_BOOKING_URL . 'assets/css/booking.css', array('flatpickr'), ECO_BOOKING_VERSION);
 
@@ -36,18 +38,16 @@ function eco_enqueue_booking_assets()
             'availabilityRefreshMs' => 15000,
             'currencySymbol' => get_woocommerce_currency_symbol(),
             'hourlyRate' => (float) get_post_meta($product->get_id(), '_eco_hourly_rate', true),
-            'dailyPrice' => ECO_DAILY_PRICE,
-            'weekly3Price' => ECO_WEEKLY3_PRICE,
-            'weekly5Price' => ECO_WEEKLY5_PRICE,
-            'monthly3Price' => ECO_MONTHLY3_PRICE,
-            'monthly5Price' => ECO_MONTHLY5_PRICE,
-            'openHour' => ECO_OPEN_HOUR,
-            'closeHour' => ECO_CLOSE_HOUR,
-            'recurringSessionHours' => ECO_RECURRING_SESSION_HOURS,
-            'recurringStartMinHour' => ECO_RECURRING_START_MIN_HOUR,
-            'recurringStartMaxHour' => ECO_RECURRING_START_MAX_HOUR,
+            'plans' => $booking_config['plans'],
+            'defaultPlan' => eco_get_default_booking_plan($product->get_id()),
+            'defaultPrice' => eco_get_default_booking_product_price($product->get_id()),
+            'openHour' => (int) $booking_config['open_hour'],
+            'closeHour' => (int) $booking_config['close_hour'],
+            'recurringSessionHours' => (int) $booking_config['recurring_session_hours'],
+            'recurringStartMinHour' => (int) $booking_config['recurring_start_min_hour'],
+            'recurringStartMaxHour' => (int) $booking_config['recurring_start_max_hour'],
             'bookedRecurringSlots' => eco_get_product_booked_slot_map($product->get_id()),
-            'invalidHoursMessage' => __('Hours exceed closing time (8:00 PM)', 'ecospace-booking'),
+            'invalidHoursMessage' => sprintf(__('Hours exceed closing time (%s)', 'ecospace-booking'), eco_hour_label($booking_config['close_hour'])),
             'bookedTimeRangeMessage' => __('This time range is already booked. Please choose another time slot.', 'ecospace-booking'),
             'dailyUnavailableMessage' => __('This date is no longer available for a daily booking.', 'ecospace-booking'),
             'availabilityRefreshErrorMessage' => __('Could not refresh availability right now. Please try again.', 'ecospace-booking'),
@@ -56,6 +56,33 @@ function eco_enqueue_booking_assets()
             'bookedRecurringSlotMessage' => __('This preferred date and time is already booked. Please select another slot.', 'ecospace-booking'),
         )
     );
+}
+
+add_filter('woocommerce_get_price_html', 'eco_booking_product_price_html', 20, 2);
+function eco_booking_product_price_html($price_html, $product)
+{
+    if (!$product instanceof WC_Product) {
+        return $price_html;
+    }
+
+    if (is_admin() && !wp_doing_ajax()) {
+        return $price_html;
+    }
+
+    if ((function_exists('is_cart') && is_cart()) || (function_exists('is_checkout') && is_checkout())) {
+        return $price_html;
+    }
+
+    if (get_post_meta($product->get_id(), '_eco_enable_booking', true) !== 'yes') {
+        return $price_html;
+    }
+
+    $display_price = eco_get_default_booking_product_price($product->get_id());
+    if ($display_price <= 0) {
+        return $price_html;
+    }
+
+    return wc_price($display_price);
 }
 
 add_action('wp_ajax_eco_refresh_booking_availability', 'eco_refresh_booking_availability');
@@ -99,18 +126,24 @@ function eco_booking_ui()
         return;
     }
 
+    $booking_config = eco_get_product_booking_config($product->get_id());
+    $enabled_plans = eco_get_enabled_booking_plans($product->get_id());
+    if (empty($enabled_plans)) {
+        echo '<div class="ecospace-booking-ui"><p class="eco-preferred-error" style="display:block;">' . esc_html__('Booking is enabled, but no booking plans are currently available for this product.', 'ecospace-booking') . '</p></div>';
+        return;
+    }
+
+    $default_plan = eco_get_default_booking_plan($product->get_id());
+    $hourly_min_hours = (int) ($booking_config['plans']['hourly']['min_hours'] ?? 1);
     $seat_capacity = (int) get_post_meta($product->get_id(), '_eco_seat_capacity', true);
     ?>
     <div class="ecospace-booking-ui">
         <p>
             <label for="eco_plan"><?php esc_html_e('Plan', 'ecospace-booking'); ?></label>
             <select id="eco_plan" name="eco_plan" required>
-                <option value="hourly" selected><?php esc_html_e('Hourly', 'ecospace-booking'); ?></option>
-                <option value="daily"><?php esc_html_e('Daily', 'ecospace-booking'); ?></option>
-                <option value="weekly3"><?php esc_html_e('Weekly (3x)', 'ecospace-booking'); ?></option>
-                <option value="weekly5"><?php esc_html_e('Weekly (5x)', 'ecospace-booking'); ?></option>
-                <option value="monthly3"><?php esc_html_e('Monthly (3x)', 'ecospace-booking'); ?></option>
-                <option value="monthly5"><?php esc_html_e('Monthly (5x)', 'ecospace-booking'); ?></option>
+                <?php foreach ($enabled_plans as $plan_key => $plan_config) : ?>
+                    <option value="<?php echo esc_attr($plan_key); ?>" <?php selected($default_plan, $plan_key); ?>><?php echo esc_html($plan_config['label']); ?></option>
+                <?php endforeach; ?>
             </select>
         </p>
 
@@ -133,14 +166,14 @@ function eco_booking_ui()
                 <label for="eco_start_time"><?php esc_html_e('Start Time', 'ecospace-booking'); ?></label>
                 <select id="eco_start_time" name="eco_start_time">
                     <option value=""><?php esc_html_e('Select', 'ecospace-booking'); ?></option>
-                    <?php for ($hour = ECO_OPEN_HOUR; $hour <= ECO_CLOSE_HOUR - 1; $hour++) : ?>
+                    <?php for ($hour = $booking_config['open_hour']; $hour <= $booking_config['close_hour'] - 1; $hour++) : ?>
                         <option value="<?php echo esc_attr($hour); ?>"><?php echo esc_html(eco_hour_label($hour)); ?></option>
                     <?php endfor; ?>
                 </select>
             </p>
             <p>
                 <label for="eco_hours"><?php esc_html_e('Hours', 'ecospace-booking'); ?></label>
-                <input type="number" id="eco_hours" name="eco_hours" min="1" max="11" step="1">
+                <input type="number" id="eco_hours" name="eco_hours" min="<?php echo esc_attr($hourly_min_hours); ?>" max="<?php echo esc_attr($booking_config['close_hour'] - $booking_config['open_hour']); ?>" step="1" value="<?php echo esc_attr($hourly_min_hours); ?>">
             </p>
         </div>
 
@@ -151,7 +184,7 @@ function eco_booking_ui()
 
         <p class="eco-price-row">
             <strong><?php esc_html_e('Price:', 'ecospace-booking'); ?></strong>
-            <span id="eco_price">0</span>
+            <span id="eco_price"><?php echo esc_html(wp_strip_all_tags(wc_price(eco_get_default_booking_product_price($product->get_id())))); ?></span>
         </p>
 
         <?php if ($seat_capacity > 0) : ?>
@@ -224,7 +257,7 @@ function eco_render_booking_item_data($item_data, $cart_item)
 
     $item_data[] = array(
         'key' => __('Booking Plan', 'ecospace-booking'),
-        'value' => eco_plan_label($booking['plan']),
+        'value' => eco_plan_label($booking['plan'], (int) ($booking['product_id'] ?? 0)),
     );
 
     $item_data[] = array(
@@ -273,7 +306,7 @@ function eco_add_booking_meta_to_order_item($item, $cart_item_key, $values)
 
     $booking = $values['eco_booking'];
 
-    $item->add_meta_data(__('Booking Plan', 'ecospace-booking'), eco_plan_label($booking['plan']), true);
+    $item->add_meta_data(__('Booking Plan', 'ecospace-booking'), eco_plan_label($booking['plan'], (int) $item->get_product_id()), true);
     $item->add_meta_data(__('Start Date', 'ecospace-booking'), $booking['start_date'], true);
 
     if (!empty($booking['start_time']) && !empty($booking['end_time'])) {

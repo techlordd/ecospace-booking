@@ -3,9 +3,32 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+function eco_admin_booking_hour_options()
+{
+    $options = array();
+    for ($hour = 0; $hour <= 23; $hour++) {
+        $options[(string) $hour] = eco_hour_label($hour);
+    }
+
+    return $options;
+}
+
+function eco_render_booking_admin_select($field_name, $selected_value, $options)
+{
+    echo '<select name="' . esc_attr($field_name) . '">';
+    foreach ($options as $option_value => $option_label) {
+        echo '<option value="' . esc_attr((string) $option_value) . '" ' . selected((string) $selected_value, (string) $option_value, false) . '>' . esc_html($option_label) . '</option>';
+    }
+    echo '</select>';
+}
+
 add_action('woocommerce_product_options_general_product_data', 'eco_product_fields');
 function eco_product_fields()
 {
+    $product_id = get_the_ID();
+    $config = $product_id ? eco_get_product_booking_config($product_id) : eco_get_default_booking_config();
+    $hour_options = eco_admin_booking_hour_options();
+
     echo '<div class="options_group">';
 
     woocommerce_wp_checkbox(
@@ -39,11 +62,95 @@ function eco_product_fields()
         )
     );
 
+    echo '<div class="form-field">';
+    echo '<label>' . esc_html__('Workspace Hours', 'ecospace-booking') . '</label>';
+    echo '<div style="padding:0 12px 12px;">';
+    echo '<table class="widefat striped" style="max-width:960px;">';
+    echo '<tbody>';
+    echo '<tr>';
+    echo '<th style="width:180px;">' . esc_html__('Opening Hour', 'ecospace-booking') . '</th>';
+    echo '<td>';
+    eco_render_booking_admin_select('_eco_open_hour', $config['open_hour'], $hour_options);
+    echo '</td>';
+    echo '<th style="width:180px;">' . esc_html__('Closing Hour', 'ecospace-booking') . '</th>';
+    echo '<td>';
+    eco_render_booking_admin_select('_eco_close_hour', $config['close_hour'], $hour_options);
+    echo '</td>';
+    echo '</tr>';
+    echo '<tr>';
+    echo '<th>' . esc_html__('Recurring Start Min', 'ecospace-booking') . '</th>';
+    echo '<td>';
+    eco_render_booking_admin_select('_eco_recurring_start_min_hour', $config['recurring_start_min_hour'], $hour_options);
+    echo '</td>';
+    echo '<th>' . esc_html__('Recurring Start Max', 'ecospace-booking') . '</th>';
+    echo '<td>';
+    eco_render_booking_admin_select('_eco_recurring_start_max_hour', $config['recurring_start_max_hour'], $hour_options);
+    echo '</td>';
+    echo '</tr>';
+    echo '<tr>';
+    echo '<th>' . esc_html__('Recurring Max Session Hours', 'ecospace-booking') . '</th>';
+    echo '<td colspan="3"><input type="number" name="_eco_recurring_session_hours" value="' . esc_attr((string) $config['recurring_session_hours']) . '" min="1" step="1" style="width:120px;"></td>';
+    echo '</tr>';
+    echo '</tbody>';
+    echo '</table>';
+    echo '<p class="description" style="margin-top:8px;">' . esc_html__('These values power validation and the product page selectors. If you leave them unchanged, the current booking behavior stays the same.', 'ecospace-booking') . '</p>';
+    echo '</div>';
+    echo '</div>';
+
+    echo '<div class="form-field">';
+    echo '<label>' . esc_html__('Plan Configuration', 'ecospace-booking') . '</label>';
+    echo '<div style="padding:0 12px 12px;">';
+    echo '<table class="widefat striped" style="max-width:960px;">';
+    echo '<thead><tr>';
+    echo '<th>' . esc_html__('Plan', 'ecospace-booking') . '</th>';
+    echo '<th>' . esc_html__('Enabled', 'ecospace-booking') . '</th>';
+    echo '<th>' . esc_html__('Customer Label', 'ecospace-booking') . '</th>';
+    echo '<th>' . esc_html__('Price', 'ecospace-booking') . '</th>';
+    echo '<th>' . esc_html__('Dates / Hours', 'ecospace-booking') . '</th>';
+    echo '<th>' . esc_html__('Window / Time', 'ecospace-booking') . '</th>';
+    echo '</tr></thead><tbody>';
+
+    foreach (eco_get_plan_order() as $plan_key) {
+        $plan = $config['plans'][$plan_key];
+
+        echo '<tr>';
+        echo '<td><strong>' . esc_html(eco_plan_label($plan_key)) . '</strong></td>';
+        echo '<td><label><input type="checkbox" name="_eco_' . esc_attr($plan_key) . '_enabled" value="yes" ' . checked($plan['enabled'], 'yes', false) . '> ' . esc_html__('Show on product page', 'ecospace-booking') . '</label></td>';
+        echo '<td><input type="text" name="_eco_' . esc_attr($plan_key) . '_label" value="' . esc_attr((string) $plan['label']) . '" style="width:100%;"></td>';
+
+        if (($plan['type'] ?? '') === 'hourly') {
+            echo '<td><span class="description">' . esc_html__('Uses Hourly Rate', 'ecospace-booking') . '</span></td>';
+            echo '<td><label>' . esc_html__('Minimum default hours', 'ecospace-booking') . ' <input type="number" name="_eco_hourly_min_hours" value="' . esc_attr((string) $plan['min_hours']) . '" min="1" step="1" style="width:90px;"></label></td>';
+            echo '<td><span class="description">' . esc_html__('Customers can book within the workspace opening window.', 'ecospace-booking') . '</span></td>';
+        } elseif (($plan['type'] ?? '') === 'daily') {
+            echo '<td><input type="number" name="_eco_daily_price" value="' . esc_attr(wc_format_localized_price((string) $plan['price'])) . '" min="0" step="0.01" style="width:120px;"></td>';
+            echo '<td><span class="description">' . esc_html__('Fixed daily booking block', 'ecospace-booking') . '</span></td>';
+            echo '<td style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">';
+            echo '<span>' . esc_html__('From', 'ecospace-booking') . '</span>';
+            eco_render_booking_admin_select('_eco_daily_start_hour', $plan['start_hour'], $hour_options);
+            echo '<span>' . esc_html__('to', 'ecospace-booking') . '</span>';
+            eco_render_booking_admin_select('_eco_daily_end_hour', $plan['end_hour'], $hour_options);
+            echo '</td>';
+        } else {
+            $window_unit_label = (($plan['window_unit'] ?? 'days') === 'months') ? __('month(s)', 'ecospace-booking') : __('day(s)', 'ecospace-booking');
+
+            echo '<td><input type="number" name="_eco_' . esc_attr($plan_key) . '_price" value="' . esc_attr(wc_format_localized_price((string) $plan['price'])) . '" min="0" step="0.01" style="width:120px;"></td>';
+            echo '<td><label>' . esc_html__('Preferred sessions', 'ecospace-booking') . ' <input type="number" name="_eco_' . esc_attr($plan_key) . '_sessions" value="' . esc_attr((string) $plan['sessions']) . '" min="1" step="1" style="width:90px;"></label></td>';
+            echo '<td><label>' . esc_html__('Booking window', 'ecospace-booking') . ' <input type="number" name="_eco_' . esc_attr($plan_key) . '_window_value" value="' . esc_attr((string) $plan['window_value']) . '" min="1" step="1" style="width:90px;"></label> <span class="description">' . esc_html($window_unit_label) . '</span></td>';
+        }
+
+        echo '</tr>';
+    }
+
+    echo '</tbody></table>';
+    echo '<p class="description" style="margin-top:8px;">' . esc_html__('Use this table to control which plans appear on the product page, adjust labels, change prices, and set the number of preferred dates or hours without editing code.', 'ecospace-booking') . '</p>';
+    echo '</div>';
+    echo '</div>';
+
     echo '<p class="form-field">';
-    echo '<span class="description">' . esc_html__('Recurring plans (Weekly 3x, Weekly 5x, Monthly 3x, Monthly 5x) require a preferred date, start time, and end time per session. Session duration must not exceed 8 hours and must stay within workspace opening hours.', 'ecospace-booking') . '</span>';
+    echo '<span class="description">' . esc_html__('Recurring plans still require a preferred date, start time, and end time per session. Validation now follows the product settings above instead of fixed code values.', 'ecospace-booking') . '</span>';
     echo '</p>';
 
-    $product_id = get_the_ID();
     if ($product_id && current_user_can('edit_post', $product_id)) {
         $rebuild_url = wp_nonce_url(
             add_query_arg(
@@ -76,6 +183,49 @@ function eco_save_fields($post_id)
 
     if (isset($_POST['_eco_seat_capacity'])) {
         update_post_meta($post_id, '_eco_seat_capacity', absint(wp_unslash($_POST['_eco_seat_capacity'])));
+    }
+
+    foreach (array('hourly', 'daily', 'weekly3', 'weekly5', 'monthly3', 'monthly5') as $plan_key) {
+        update_post_meta($post_id, '_eco_' . $plan_key . '_enabled', isset($_POST['_eco_' . $plan_key . '_enabled']) ? 'yes' : 'no');
+
+        if (isset($_POST['_eco_' . $plan_key . '_label'])) {
+            update_post_meta($post_id, '_eco_' . $plan_key . '_label', sanitize_text_field(wp_unslash($_POST['_eco_' . $plan_key . '_label'])));
+        }
+    }
+
+    foreach (array(
+        '_eco_open_hour',
+        '_eco_close_hour',
+        '_eco_recurring_start_min_hour',
+        '_eco_recurring_start_max_hour',
+        '_eco_recurring_session_hours',
+        '_eco_hourly_min_hours',
+        '_eco_daily_start_hour',
+        '_eco_daily_end_hour',
+        '_eco_weekly3_sessions',
+        '_eco_weekly5_sessions',
+        '_eco_monthly3_sessions',
+        '_eco_monthly5_sessions',
+        '_eco_weekly3_window_value',
+        '_eco_weekly5_window_value',
+        '_eco_monthly3_window_value',
+        '_eco_monthly5_window_value',
+    ) as $meta_key) {
+        if (isset($_POST[$meta_key])) {
+            update_post_meta($post_id, $meta_key, absint(wp_unslash($_POST[$meta_key])));
+        }
+    }
+
+    foreach (array(
+        '_eco_daily_price',
+        '_eco_weekly3_price',
+        '_eco_weekly5_price',
+        '_eco_monthly3_price',
+        '_eco_monthly5_price',
+    ) as $meta_key) {
+        if (isset($_POST[$meta_key])) {
+            update_post_meta($post_id, $meta_key, wc_format_decimal(wp_unslash($_POST[$meta_key])));
+        }
     }
 }
 
@@ -497,6 +647,7 @@ function eco_apply_workspace_bookings_preset($preset, $filters)
     $preset = sanitize_key((string) $preset);
     $now = current_time('timestamp');
     $offset_seconds = ((float) get_option('gmt_offset')) * HOUR_IN_SECONDS;
+    $close_hour = eco_get_default_close_hour();
 
     if ($preset === 'today') {
         $filters['date'] = gmdate('Y-m-d', $now + (int) $offset_seconds);
@@ -504,7 +655,7 @@ function eco_apply_workspace_bookings_preset($preset, $filters)
         $current_hour = (int) gmdate('G', $now + (int) $offset_seconds);
         $filters['date'] = gmdate('Y-m-d', $now + (int) $offset_seconds);
         $filters['window_start'] = $current_hour;
-        $filters['window_end'] = min($current_hour + 2, ECO_CLOSE_HOUR);
+        $filters['window_end'] = min($current_hour + 2, $close_hour);
     } elseif ($preset === 'action_needed') {
         $filters['payment'] = 'paid';
         $filters['ops_status'] = 'booked';
@@ -645,7 +796,7 @@ function eco_render_workspace_bookings_page()
     echo '<select id="eco_filter_plan" name="filter_plan">';
     echo '<option value="">' . esc_html__('All Plans', 'ecospace-booking') . '</option>';
     foreach (array('hourly', 'daily', 'weekly3', 'weekly5', 'monthly3', 'monthly5') as $plan_key) {
-        echo '<option value="' . esc_attr($plan_key) . '" ' . selected($filters['plan'], $plan_key, false) . '>' . esc_html(ucfirst($plan_key)) . '</option>';
+        echo '<option value="' . esc_attr($plan_key) . '" ' . selected($filters['plan'], $plan_key, false) . '>' . esc_html(eco_plan_label($plan_key)) . '</option>';
     }
     echo '</select></p>';
 

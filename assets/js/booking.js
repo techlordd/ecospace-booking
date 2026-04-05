@@ -72,21 +72,19 @@
     var price = byId("eco_price");
     var form = root.closest("form");
 
+    var plans = data.plans || {};
+    var defaultPlan = data.defaultPlan || "";
     var openHour = Number(data.openHour || 9);
     var closeHour = Number(data.closeHour || 20);
     var recurringSessionHours = Number(data.recurringSessionHours || 8);
     var recurringStartMin = Number(data.recurringStartMinHour || openHour);
     var recurringStartMax = Number(data.recurringStartMaxHour || closeHour - 1);
-    var recurringPlans = {
-      weekly3: true,
-      weekly5: true,
-      monthly3: true,
-      monthly5: true,
-    };
+    var recurringPlans = {};
     var productId = Number(data.productId || 0);
     var ajaxUrl = data.ajaxUrl || "";
     var availabilityNonce = data.availabilityNonce || "";
     var availabilityRefreshMs = Number(data.availabilityRefreshMs || 15000);
+    var defaultPrice = Number(data.defaultPrice || 0);
     var bookedRecurringSlots = data.bookedRecurringSlots || {};
     var availabilityRefreshPromise = null;
     var lastAvailabilityHash = JSON.stringify(bookedRecurringSlots || {});
@@ -94,13 +92,63 @@
     var pendingSubmitter = null;
     var slotIdCounter = 0;
     var recurringDatePickers = [];
-    var prices = {
-      daily: Number(data.dailyPrice || 0),
-      weekly3: Number(data.weekly3Price || 0),
-      weekly5: Number(data.weekly5Price || 0),
-      monthly3: Number(data.monthly3Price || 0),
-      monthly5: Number(data.monthly5Price || 0),
-    };
+
+    for (var planKey in plans) {
+      if (Object.prototype.hasOwnProperty.call(plans, planKey) && plans[planKey] && plans[planKey].type === "recurring") {
+        recurringPlans[planKey] = true;
+      }
+    }
+
+    function getPlanConfig(planKey) {
+      return plans[planKey] || null;
+    }
+
+    function getCurrentPlanConfig() {
+      return getPlanConfig(plan.value);
+    }
+
+    function getHourlyMinimumHours() {
+      var hourlyPlan = getPlanConfig("hourly") || {};
+      return Math.max(1, Number(hourlyPlan.min_hours || 1));
+    }
+
+    function getPlanPrice(planKey) {
+      var planConfig = getPlanConfig(planKey);
+      if (!planConfig) {
+        return 0;
+      }
+
+      if (planConfig.type === "hourly") {
+        return Number(data.hourlyRate || 0) * getHourlyMinimumHours();
+      }
+
+      return Number(planConfig.price || 0);
+    }
+
+    function getRecurringSessionsCount(planKey) {
+      var planConfig = getPlanConfig(planKey);
+      if (!planConfig) {
+        return 0;
+      }
+
+      return Math.max(0, Number(planConfig.sessions || 0));
+    }
+
+    function syncHourlyFieldAttributes() {
+      var minimumHours = getHourlyMinimumHours();
+      var maximumHours = Math.max(1, closeHour - openHour);
+
+      hours.min = String(minimumHours);
+      hours.max = String(maximumHours);
+
+      if (!hours.value || Number(hours.value || 0) < minimumHours) {
+        hours.value = String(minimumHours);
+      }
+    }
+
+    function setDisplayedPlanPrice(planKey) {
+      price.textContent = formatPrice(getPlanPrice(planKey));
+    }
 
     // Sync WooCommerce product price display when booking plan price changes
     var wcBdi = document.querySelector('.price .woocommerce-Price-amount bdi')
@@ -129,6 +177,10 @@
       dateFormat: "Y-m-d",
       clickOpens: false,
     });
+
+    if (defaultPlan && plan && plan.querySelector('option[value="' + defaultPlan + '"]')) {
+      plan.value = defaultPlan;
+    }
 
     function isRecurringPlan(value) {
       return recurringPlans[value] === true;
@@ -181,18 +233,6 @@
         var selfDate = pickerEntry.input.value;
         var disableDateMap = {};
 
-        for (var bookedDateValue in bookedRecurringSlots) {
-          if (!Object.prototype.hasOwnProperty.call(bookedRecurringSlots, bookedDateValue)) {
-            continue;
-          }
-
-          if (!bookedRecurringSlots[bookedDateValue] || !bookedRecurringSlots[bookedDateValue].length) {
-            continue;
-          }
-
-          disableDateMap[bookedDateValue] = true;
-        }
-
         for (var dateValue in selectedDates) {
           if (!Object.prototype.hasOwnProperty.call(selectedDates, dateValue)) {
             continue;
@@ -213,18 +253,8 @@
       if (plan.value === "hourly") {
         rebuildHourlyStartOptions();
         updateHourlyPrice();
-      }
-
-      if (plan.value === "daily") {
-        price.textContent = formatPrice(prices.daily);
-      } else if (plan.value === "weekly3") {
-        price.textContent = formatPrice(prices.weekly3);
-      } else if (plan.value === "weekly5") {
-        price.textContent = formatPrice(prices.weekly5);
-      } else if (plan.value === "monthly3") {
-        price.textContent = formatPrice(prices.monthly3);
-      } else if (plan.value === "monthly5") {
-        price.textContent = formatPrice(prices.monthly5);
+      } else {
+        setDisplayedPlanPrice(plan.value);
       }
 
       syncStartDateAvailability();
@@ -356,6 +386,7 @@
 
       var selectedDate = startDate.value;
       var previousStartValue = startTime.value;
+      var minimumHours = getHourlyMinimumHours();
 
       startTime.innerHTML = "";
       startTime.appendChild(createSelectPlaceholder("Select"));
@@ -364,9 +395,9 @@
         var hasAvailableRange = false;
 
         if (!selectedDate) {
-          hasAvailableRange = true;
+          hasAvailableRange = hour + minimumHours <= closeHour;
         } else {
-          for (var endHour = hour + 1; endHour <= closeHour; endHour += 1) {
+          for (var endHour = hour + minimumHours; endHour <= closeHour; endHour += 1) {
             if (!doesRangeOverlap(selectedDate, hour, endHour)) {
               hasAvailableRange = true;
               break;
@@ -420,11 +451,12 @@
       }
 
       if (plan.value === "daily") {
+        var dailyPlan = getCurrentPlanConfig() || {};
         if (!startDate.value) {
           return true;
         }
 
-        if (doesRangeOverlap(startDate.value, openHour, closeHour)) {
+        if (doesRangeOverlap(startDate.value, Number(dailyPlan.start_hour || openHour), Number(dailyPlan.end_hour || closeHour))) {
           if (shouldShowBrowserMessage) {
             alert(data.dailyUnavailableMessage || "This date is no longer available for a daily booking.");
           }
@@ -816,20 +848,44 @@
       }
     }
 
+    function createRecurringInputsForPlan(planKey) {
+      var planConfig = getPlanConfig(planKey) || {};
+      var sessionCount = getRecurringSessionsCount(planKey);
+
+      if (!sessionCount) {
+        clearPreferredInputs();
+        return;
+      }
+
+      if (
+        String(planKey).indexOf("monthly") === 0 &&
+        Number(planConfig.window_value || 1) === 1 &&
+        sessionCount % 4 === 0
+      ) {
+        createMonthlyInputs(sessionCount / 4);
+        return;
+      }
+
+      createPreferredInputs(sessionCount, "Session");
+    }
+
     function updateEndDateFromPlan() {
       var selectedStart = parseDate(startDate.value);
+      var selectedPlanConfig = getCurrentPlanConfig();
       if (!selectedStart) {
         endDate.value = "";
         return;
       }
 
-      var selectedPlan = plan.value;
-      if (selectedPlan === "weekly3" || selectedPlan === "weekly5") {
-        endDatePicker.setDate(addDays(selectedStart, 7), true, "Y-m-d");
-      } else if (selectedPlan === "monthly3" || selectedPlan === "monthly5") {
-        endDatePicker.setDate(addMonths(selectedStart, 1), true, "Y-m-d");
-      } else {
+      if (!selectedPlanConfig || selectedPlanConfig.type !== "recurring") {
         endDate.value = "";
+        return;
+      }
+
+      if (selectedPlanConfig.window_unit === "months") {
+        endDatePicker.setDate(addMonths(selectedStart, Number(selectedPlanConfig.window_value || 1)), true, "Y-m-d");
+      } else {
+        endDatePicker.setDate(addDays(selectedStart, Number(selectedPlanConfig.window_value || 1)), true, "Y-m-d");
       }
     }
 
@@ -837,26 +893,36 @@
       var selectedStartHour = Number(startTime.value || 0);
       var selectedHours = Number(hours.value || 0);
       var hourlyRate = Number(data.hourlyRate || 0);
+      var minimumHours = getHourlyMinimumHours();
+
+      syncHourlyFieldAttributes();
+      selectedHours = Number(hours.value || minimumHours);
 
       setHourlyConflictState("");
       endTime.value = "";
-      if (!selectedStartHour || !selectedHours) {
-        price.textContent = formatPrice(0);
+
+      if (!selectedHours) {
+        price.textContent = formatPrice(defaultPrice);
+        return;
+      }
+
+      if (!selectedStartHour) {
+        price.textContent = formatPrice(hourlyRate * selectedHours);
         return;
       }
 
       var endHour = selectedStartHour + selectedHours;
       if (endHour > closeHour) {
         alert(data.invalidHoursMessage || "Hours exceed closing time");
-        hours.value = "";
-        price.textContent = formatPrice(0);
+        hours.value = String(minimumHours);
+        price.textContent = formatPrice(hourlyRate * minimumHours);
         return;
       }
 
       if (startDate.value && doesRangeOverlap(startDate.value, selectedStartHour, endHour)) {
         setHourlyConflictState(data.bookedTimeRangeMessage || "This time range is already booked.");
         endTime.value = "";
-        price.textContent = formatPrice(0);
+        price.textContent = formatPrice(hourlyRate * selectedHours);
         return;
       }
 
@@ -876,15 +942,16 @@
         var dateKey = year + "-" + month + "-" + day;
 
         if (plan.value === "daily") {
-          return getBookedRangesForDate(dateKey).length > 0;
-        }
-
-        if (isRecurringPlan(plan.value)) {
-          return getBookedRangesForDate(dateKey).length > 0;
+          var dailyPlan = getCurrentPlanConfig() || {};
+          return doesRangeOverlap(dateKey, Number(dailyPlan.start_hour || openHour), Number(dailyPlan.end_hour || closeHour));
         }
 
         if (plan.value === "hourly") {
-          return getBookedRangesForDate(dateKey).length > 0;
+          return false;
+        }
+
+        if (isRecurringPlan(plan.value)) {
+          return false;
         }
 
         return false;
@@ -893,13 +960,20 @@
 
     function applyPlanUI() {
       var selectedPlan = plan.value;
+      var selectedPlanConfig = getCurrentPlanConfig();
       clearPreferredInputs();
       endTime.value = "";
+
+      if (!selectedPlanConfig) {
+        price.textContent = formatPrice(0);
+        return;
+      }
 
       if (selectedPlan === "hourly") {
         endDateBlock.style.display = "none";
         byId("eco_end_time_block").style.display = "";
         byId("eco_hourly_fields").style.display = "block";
+        syncHourlyFieldAttributes();
         rebuildHourlyStartOptions();
         updateHourlyPrice();
         syncStartDateAvailability();
@@ -912,8 +986,8 @@
       if (selectedPlan === "daily") {
         endDateBlock.style.display = "none";
         byId("eco_end_time_block").style.display = "";
-        endTime.value = formatHour(closeHour);
-        price.textContent = formatPrice(prices.daily);
+        endTime.value = formatHour(Number(selectedPlanConfig.end_hour || closeHour));
+        setDisplayedPlanPrice(selectedPlan);
         return;
       }
 
@@ -925,19 +999,8 @@
         preferredHint.textContent = "Select a preferred start and end time for each session. Maximum duration per session is " + recurringSessionHours + " hours.";
       }
 
-      if (selectedPlan === "weekly3") {
-        price.textContent = formatPrice(prices.weekly3);
-        createPreferredInputs(3, "Session");
-      } else if (selectedPlan === "weekly5") {
-        price.textContent = formatPrice(prices.weekly5);
-        createPreferredInputs(5, "Session");
-      } else if (selectedPlan === "monthly3") {
-        price.textContent = formatPrice(prices.monthly3);
-        createMonthlyInputs(3);
-      } else if (selectedPlan === "monthly5") {
-        price.textContent = formatPrice(prices.monthly5);
-        createMonthlyInputs(5);
-      }
+      setDisplayedPlanPrice(selectedPlan);
+      createRecurringInputsForPlan(selectedPlan);
 
       validateRecurringSlots();
     }
@@ -971,6 +1034,7 @@
       form.addEventListener("submit", attemptSubmitAfterRefresh);
     }
 
+    syncHourlyFieldAttributes();
     applyPlanUI();
     refreshAvailability(true);
   }

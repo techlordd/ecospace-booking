@@ -3,16 +3,246 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-const ECO_DAILY_PRICE = 4800;
-const ECO_WEEKLY3_PRICE = 12000;
-const ECO_WEEKLY5_PRICE = 20000;
-const ECO_MONTHLY3_PRICE = 48000;
-const ECO_MONTHLY5_PRICE = 80000;
-const ECO_OPEN_HOUR = 9;
-const ECO_CLOSE_HOUR = 20;
-const ECO_RECURRING_SESSION_HOURS = 8;
-const ECO_RECURRING_START_MIN_HOUR = 9;
-const ECO_RECURRING_START_MAX_HOUR = 19;
+function eco_get_plan_order()
+{
+    return array('hourly', 'daily', 'weekly3', 'weekly5', 'monthly3', 'monthly5');
+}
+
+function eco_get_default_booking_config()
+{
+    return array(
+        'open_hour' => 9,
+        'close_hour' => 20,
+        'recurring_session_hours' => 8,
+        'recurring_start_min_hour' => 9,
+        'recurring_start_max_hour' => 19,
+        'plans' => array(
+            'hourly' => array(
+                'enabled' => 'yes',
+                'type' => 'hourly',
+                'label' => __('Hourly', 'ecospace-booking'),
+                'min_hours' => 1,
+            ),
+            'daily' => array(
+                'enabled' => 'yes',
+                'type' => 'daily',
+                'label' => __('Daily', 'ecospace-booking'),
+                'price' => 4800,
+                'start_hour' => 9,
+                'end_hour' => 20,
+            ),
+            'weekly3' => array(
+                'enabled' => 'yes',
+                'type' => 'recurring',
+                'label' => __('Weekly (3x)', 'ecospace-booking'),
+                'price' => 12000,
+                'sessions' => 3,
+                'window_value' => 7,
+                'window_unit' => 'days',
+            ),
+            'weekly5' => array(
+                'enabled' => 'yes',
+                'type' => 'recurring',
+                'label' => __('Weekly (5x)', 'ecospace-booking'),
+                'price' => 20000,
+                'sessions' => 5,
+                'window_value' => 7,
+                'window_unit' => 'days',
+            ),
+            'monthly3' => array(
+                'enabled' => 'yes',
+                'type' => 'recurring',
+                'label' => __('Monthly (3x)', 'ecospace-booking'),
+                'price' => 48000,
+                'sessions' => 12,
+                'window_value' => 1,
+                'window_unit' => 'months',
+            ),
+            'monthly5' => array(
+                'enabled' => 'yes',
+                'type' => 'recurring',
+                'label' => __('Monthly (5x)', 'ecospace-booking'),
+                'price' => 80000,
+                'sessions' => 20,
+                'window_value' => 1,
+                'window_unit' => 'months',
+            ),
+        ),
+    );
+}
+
+function eco_get_booking_meta_value($product_id, $meta_key, $default = '')
+{
+    $stored = get_post_meta($product_id, $meta_key, true);
+    return $stored === '' ? $default : $stored;
+}
+
+function eco_normalize_hour_value($value, $minimum, $maximum)
+{
+    $value = (int) $value;
+    if ($value < $minimum) {
+        return $minimum;
+    }
+
+    if ($value > $maximum) {
+        return $maximum;
+    }
+
+    return $value;
+}
+
+function eco_get_product_booking_config($product_id)
+{
+    $defaults = eco_get_default_booking_config();
+    $product_id = (int) $product_id;
+
+    if ($product_id <= 0) {
+        return $defaults;
+    }
+
+    $open_hour = eco_normalize_hour_value(eco_get_booking_meta_value($product_id, '_eco_open_hour', $defaults['open_hour']), 0, 22);
+    $close_hour = eco_normalize_hour_value(eco_get_booking_meta_value($product_id, '_eco_close_hour', $defaults['close_hour']), $open_hour + 1, 23);
+    $recurring_start_min_hour = eco_normalize_hour_value(
+        eco_get_booking_meta_value($product_id, '_eco_recurring_start_min_hour', $defaults['recurring_start_min_hour']),
+        $open_hour,
+        $close_hour - 1
+    );
+    $recurring_start_max_hour = eco_normalize_hour_value(
+        eco_get_booking_meta_value($product_id, '_eco_recurring_start_max_hour', $defaults['recurring_start_max_hour']),
+        $recurring_start_min_hour,
+        $close_hour - 1
+    );
+    $recurring_session_hours = max(
+        1,
+        min(
+            $close_hour - $recurring_start_min_hour,
+            (int) eco_get_booking_meta_value($product_id, '_eco_recurring_session_hours', $defaults['recurring_session_hours'])
+        )
+    );
+
+    $config = array(
+        'open_hour' => $open_hour,
+        'close_hour' => $close_hour,
+        'recurring_session_hours' => $recurring_session_hours,
+        'recurring_start_min_hour' => $recurring_start_min_hour,
+        'recurring_start_max_hour' => $recurring_start_max_hour,
+        'plans' => array(),
+    );
+
+    foreach (eco_get_plan_order() as $plan_key) {
+        $plan_defaults = $defaults['plans'][$plan_key];
+        $plan_config = $plan_defaults;
+
+        $stored_enabled = get_post_meta($product_id, '_eco_' . $plan_key . '_enabled', true);
+        if ($stored_enabled !== '') {
+            $plan_config['enabled'] = ($stored_enabled === 'yes') ? 'yes' : 'no';
+        }
+
+        $stored_label = sanitize_text_field((string) eco_get_booking_meta_value($product_id, '_eco_' . $plan_key . '_label', $plan_defaults['label']));
+        if ($stored_label !== '') {
+            $plan_config['label'] = $stored_label;
+        }
+
+        if ($plan_key === 'hourly') {
+            $plan_config['min_hours'] = max(
+                1,
+                min(
+                    $close_hour - $open_hour,
+                    absint(eco_get_booking_meta_value($product_id, '_eco_hourly_min_hours', $plan_defaults['min_hours']))
+                )
+            );
+        } elseif ($plan_key === 'daily') {
+            $plan_config['price'] = max(0, (float) eco_get_booking_meta_value($product_id, '_eco_daily_price', $plan_defaults['price']));
+            $plan_config['start_hour'] = eco_normalize_hour_value(
+                eco_get_booking_meta_value($product_id, '_eco_daily_start_hour', $plan_defaults['start_hour']),
+                $open_hour,
+                $close_hour - 1
+            );
+            $plan_config['end_hour'] = eco_normalize_hour_value(
+                eco_get_booking_meta_value($product_id, '_eco_daily_end_hour', $plan_defaults['end_hour']),
+                $plan_config['start_hour'] + 1,
+                $close_hour
+            );
+        } else {
+            $plan_config['price'] = max(0, (float) eco_get_booking_meta_value($product_id, '_eco_' . $plan_key . '_price', $plan_defaults['price']));
+            $plan_config['sessions'] = max(1, absint(eco_get_booking_meta_value($product_id, '_eco_' . $plan_key . '_sessions', $plan_defaults['sessions'])));
+
+            $max_window_value = ($plan_defaults['window_unit'] === 'months') ? 12 : 365;
+            $plan_config['window_value'] = max(
+                1,
+                min(
+                    $max_window_value,
+                    absint(eco_get_booking_meta_value($product_id, '_eco_' . $plan_key . '_window_value', $plan_defaults['window_value']))
+                )
+            );
+        }
+
+        $config['plans'][$plan_key] = $plan_config;
+    }
+
+    return $config;
+}
+
+function eco_get_booking_plan($product_id, $plan)
+{
+    $config = eco_get_product_booking_config($product_id);
+    return $config['plans'][$plan] ?? null;
+}
+
+function eco_get_enabled_booking_plans($product_id)
+{
+    $config = eco_get_product_booking_config($product_id);
+    $plans = array();
+
+    foreach (eco_get_plan_order() as $plan_key) {
+        if (($config['plans'][$plan_key]['enabled'] ?? 'no') !== 'yes') {
+            continue;
+        }
+
+        $plans[$plan_key] = $config['plans'][$plan_key];
+    }
+
+    return $plans;
+}
+
+function eco_get_default_booking_plan($product_id)
+{
+    $enabled_plans = eco_get_enabled_booking_plans($product_id);
+    $keys = array_keys($enabled_plans);
+    return !empty($keys) ? (string) $keys[0] : '';
+}
+
+function eco_get_default_booking_product_price($product_id)
+{
+    $config = eco_get_product_booking_config($product_id);
+    $hourly_rate = (float) get_post_meta($product_id, '_eco_hourly_rate', true);
+    $hourly_plan = $config['plans']['hourly'] ?? array();
+
+    if (($hourly_plan['enabled'] ?? 'no') === 'yes' && $hourly_rate > 0) {
+        return max(0, $hourly_rate) * max(1, (int) ($hourly_plan['min_hours'] ?? 1));
+    }
+
+    foreach (eco_get_plan_order() as $plan_key) {
+        if ($plan_key === 'hourly') {
+            continue;
+        }
+
+        $plan_config = $config['plans'][$plan_key] ?? array();
+        if (($plan_config['enabled'] ?? 'no') !== 'yes') {
+            continue;
+        }
+
+        return max(0, (float) ($plan_config['price'] ?? 0));
+    }
+
+    return 0;
+}
+
+function eco_get_default_close_hour()
+{
+    $defaults = eco_get_default_booking_config();
+    return (int) $defaults['close_hour'];
+}
 
 /**
  * Strict date parser for Y-m-d values.
@@ -84,7 +314,8 @@ function eco_sanitize_preferred_end_times($times)
 
 function eco_is_recurring_plan($plan)
 {
-    return in_array($plan, array('weekly3', 'weekly5', 'monthly3', 'monthly5'), true);
+    $defaults = eco_get_default_booking_config();
+    return isset($defaults['plans'][$plan]) && ($defaults['plans'][$plan]['type'] ?? '') === 'recurring';
 }
 
 function eco_booked_slot_meta_key($date)
@@ -529,40 +760,47 @@ function eco_rebuild_product_booked_slots($product_id)
     );
 }
 
-function eco_plan_price($plan, $hourly_rate, $hours)
+function eco_plan_price($plan, $hourly_rate, $hours, $product_id = 0)
 {
-    switch ($plan) {
-        case 'hourly':
-            return max(0, (float) $hourly_rate) * max(0, (int) $hours);
-        case 'daily':
-            return ECO_DAILY_PRICE;
-        case 'weekly3':
-            return ECO_WEEKLY3_PRICE;
-        case 'weekly5':
-            return ECO_WEEKLY5_PRICE;
-        case 'monthly3':
-            return ECO_MONTHLY3_PRICE;
-        case 'monthly5':
-            return ECO_MONTHLY5_PRICE;
-        default:
-            return 0;
+    $plan_config = eco_get_booking_plan($product_id, $plan);
+    if (!$plan_config) {
+        return 0;
     }
+
+    if (($plan_config['type'] ?? '') === 'hourly') {
+        return max(0, (float) $hourly_rate) * max(0, (int) $hours);
+    }
+
+    return max(0, (float) ($plan_config['price'] ?? 0));
 }
 
-function eco_expected_preferred_days($plan)
+function eco_expected_preferred_days($plan, $product_id = 0)
 {
-    switch ($plan) {
-        case 'weekly3':
-            return 3;
-        case 'weekly5':
-            return 5;
-        case 'monthly3':
-            return 12;
-        case 'monthly5':
-            return 20;
-        default:
-            return 0;
+    $plan_config = eco_get_booking_plan($product_id, $plan);
+    if (!$plan_config || ($plan_config['type'] ?? '') !== 'recurring') {
+        return 0;
     }
+
+    return max(0, (int) ($plan_config['sessions'] ?? 0));
+}
+
+function eco_get_plan_window_end_date($plan, DateTime $start_date, $product_id = 0)
+{
+    $plan_config = eco_get_booking_plan($product_id, $plan);
+    $end_date = clone $start_date;
+
+    if (!$plan_config || ($plan_config['type'] ?? '') !== 'recurring') {
+        return $end_date;
+    }
+
+    $window_value = max(1, (int) ($plan_config['window_value'] ?? 1));
+    if (($plan_config['window_unit'] ?? 'days') === 'months') {
+        $end_date->modify('+' . $window_value . ' month' . ($window_value === 1 ? '' : 's'));
+    } else {
+        $end_date->modify('+' . $window_value . ' days');
+    }
+
+    return $end_date;
 }
 
 /**
@@ -578,7 +816,8 @@ function eco_validate_booking_payload($product_id)
         );
     }
 
-    $allowed_plans = array('hourly', 'daily', 'weekly3', 'weekly5', 'monthly3', 'monthly5');
+    $config = eco_get_product_booking_config($product_id);
+    $allowed_plans = array_keys(eco_get_enabled_booking_plans($product_id));
     $plan = isset($_POST['eco_plan']) ? sanitize_text_field(wp_unslash($_POST['eco_plan'])) : '';
     if (!in_array($plan, $allowed_plans, true)) {
         return array('ok' => false, 'message' => __('Please choose a valid booking plan.', 'ecospace-booking'));
@@ -591,6 +830,8 @@ function eco_validate_booking_payload($product_id)
     }
 
     $hourly_rate = (float) get_post_meta($product_id, '_eco_hourly_rate', true);
+    $hourly_plan = $config['plans']['hourly'] ?? array();
+    $daily_plan = $config['plans']['daily'] ?? array();
     $preferred_days = isset($_POST['eco_preferred_days']) ? eco_sanitize_preferred_days($_POST['eco_preferred_days']) : array();
     $preferred_start_times = isset($_POST['eco_preferred_start_times']) ? eco_sanitize_preferred_start_times($_POST['eco_preferred_start_times']) : array();
     $preferred_end_times = isset($_POST['eco_preferred_end_times']) ? eco_sanitize_preferred_end_times($_POST['eco_preferred_end_times']) : array();
@@ -611,28 +852,29 @@ function eco_validate_booking_payload($product_id)
     if ($plan === 'hourly') {
         $start_time = isset($_POST['eco_start_time']) ? (int) sanitize_text_field(wp_unslash($_POST['eco_start_time'])) : 0;
         $hours = isset($_POST['eco_hours']) ? (int) sanitize_text_field(wp_unslash($_POST['eco_hours'])) : 0;
+        $minimum_hours = max(1, (int) ($hourly_plan['min_hours'] ?? 1));
 
         if ($hourly_rate <= 0) {
             return array('ok' => false, 'message' => __('Hourly rate is not configured for this workspace.', 'ecospace-booking'));
         }
 
-        if ($start_time < ECO_OPEN_HOUR || $start_time > (ECO_CLOSE_HOUR - 1)) {
+        if ($start_time < $config['open_hour'] || $start_time > ($config['close_hour'] - 1)) {
             return array('ok' => false, 'message' => __('Start time must be within workspace opening hours.', 'ecospace-booking'));
         }
 
-        if ($hours < 1 || $hours > (ECO_CLOSE_HOUR - ECO_OPEN_HOUR)) {
-            return array('ok' => false, 'message' => __('Please select a valid number of hours.', 'ecospace-booking'));
+        if ($hours < $minimum_hours || $hours > ($config['close_hour'] - $config['open_hour'])) {
+            return array('ok' => false, 'message' => sprintf(__('Please select at least %d hour(s) and stay within workspace opening hours.', 'ecospace-booking'), $minimum_hours));
         }
 
         $end_time = $start_time + $hours;
-        if ($end_time > ECO_CLOSE_HOUR) {
-            return array('ok' => false, 'message' => __('Selected hours exceed closing time (8:00 PM).', 'ecospace-booking'));
+        if ($end_time > $config['close_hour']) {
+            return array('ok' => false, 'message' => sprintf(__('Selected hours exceed closing time (%s).', 'ecospace-booking'), eco_hour_label($config['close_hour'])));
         }
 
         $payload['start_time'] = $start_time;
         $payload['end_time'] = $end_time;
         $payload['hours'] = $hours;
-        $payload['price'] = eco_plan_price($plan, $hourly_rate, $hours);
+        $payload['price'] = eco_plan_price($plan, $hourly_rate, $hours, $product_id);
 
         $conflict_result = eco_validate_paid_slot_conflicts($product_id, eco_booking_slots_from_payload($payload));
         if (!$conflict_result['ok']) {
@@ -643,10 +885,10 @@ function eco_validate_booking_payload($product_id)
     }
 
     if ($plan === 'daily') {
-        $payload['start_time'] = ECO_OPEN_HOUR;
-        $payload['end_time'] = ECO_CLOSE_HOUR;
-        $payload['hours'] = ECO_CLOSE_HOUR - ECO_OPEN_HOUR;
-        $payload['price'] = eco_plan_price($plan, $hourly_rate, 0);
+        $payload['start_time'] = (int) ($daily_plan['start_hour'] ?? $config['open_hour']);
+        $payload['end_time'] = (int) ($daily_plan['end_hour'] ?? $config['close_hour']);
+        $payload['hours'] = $payload['end_time'] - $payload['start_time'];
+        $payload['price'] = eco_plan_price($plan, $hourly_rate, 0, $product_id);
 
         $conflict_result = eco_validate_paid_slot_conflicts($product_id, eco_booking_slots_from_payload($payload));
         if (!$conflict_result['ok']) {
@@ -656,14 +898,9 @@ function eco_validate_booking_payload($product_id)
         return array('ok' => true, 'data' => $payload);
     }
 
-    $end_date = clone $start_date;
-    if (strpos($plan, 'weekly') === 0) {
-        $end_date->modify('+7 days');
-    } else {
-        $end_date->modify('+1 month');
-    }
+    $end_date = eco_get_plan_window_end_date($plan, $start_date, $product_id);
 
-    $expected_days = eco_expected_preferred_days($plan);
+    $expected_days = eco_expected_preferred_days($plan, $product_id);
     if (count($preferred_days) !== $expected_days) {
         return array('ok' => false, 'message' => sprintf(__('Please select exactly %d preferred dates.', 'ecospace-booking'), $expected_days));
     }
@@ -691,7 +928,7 @@ function eco_validate_booking_payload($product_id)
         }
 
         $start_time = (int) $preferred_start_times[$index];
-        if ($start_time < ECO_RECURRING_START_MIN_HOUR || $start_time > ECO_RECURRING_START_MAX_HOUR) {
+        if ($start_time < $config['recurring_start_min_hour'] || $start_time > $config['recurring_start_max_hour']) {
             return array('ok' => false, 'message' => __('Recurring start time must be within workspace opening hours.', 'ecospace-booking'));
         }
 
@@ -700,12 +937,12 @@ function eco_validate_booking_payload($product_id)
             return array('ok' => false, 'message' => __('End time must be after start time for each preferred session.', 'ecospace-booking'));
         }
 
-        if (($end_time - $start_time) > ECO_RECURRING_SESSION_HOURS) {
-            return array('ok' => false, 'message' => __('Preferred session duration cannot exceed 8 hours.', 'ecospace-booking'));
+        if (($end_time - $start_time) > $config['recurring_session_hours']) {
+            return array('ok' => false, 'message' => sprintf(__('Preferred session duration cannot exceed %d hours.', 'ecospace-booking'), $config['recurring_session_hours']));
         }
 
-        if ($end_time > ECO_CLOSE_HOUR) {
-            return array('ok' => false, 'message' => __('Recurring session exceeds closing time (8:00 PM).', 'ecospace-booking'));
+        if ($end_time > $config['close_hour']) {
+            return array('ok' => false, 'message' => sprintf(__('Recurring session exceeds closing time (%s).', 'ecospace-booking'), eco_hour_label($config['close_hour'])));
         }
 
         $formatted_day = $d->format('Y-m-d');
@@ -749,7 +986,7 @@ function eco_validate_booking_payload($product_id)
     $payload['end_date'] = $end_date->format('Y-m-d');
     $payload['preferred_days'] = $parsed_preferred;
     $payload['preferred_slots'] = $parsed_slots;
-    $payload['price'] = eco_plan_price($plan, $hourly_rate, 0);
+    $payload['price'] = eco_plan_price($plan, $hourly_rate, 0, $product_id);
 
     $conflict_result = eco_validate_paid_slot_conflicts($product_id, $parsed_slots);
     if (!$conflict_result['ok']) {
@@ -771,18 +1008,15 @@ function eco_hour_label($hour)
     return sprintf('%d:00 %s', $normalized, $suffix);
 }
 
-function eco_plan_label($plan)
+function eco_plan_label($plan, $product_id = 0)
 {
-    $labels = array(
-        'hourly' => __('Hourly', 'ecospace-booking'),
-        'daily' => __('Daily', 'ecospace-booking'),
-        'weekly3' => __('Weekly (3x)', 'ecospace-booking'),
-        'weekly5' => __('Weekly (5x)', 'ecospace-booking'),
-        'monthly3' => __('Monthly (3x)', 'ecospace-booking'),
-        'monthly5' => __('Monthly (5x)', 'ecospace-booking'),
-    );
+    $plan_config = eco_get_booking_plan($product_id, $plan);
+    if ($plan_config && !empty($plan_config['label'])) {
+        return (string) $plan_config['label'];
+    }
 
-    return $labels[$plan] ?? $plan;
+    $defaults = eco_get_default_booking_config();
+    return $defaults['plans'][$plan]['label'] ?? $plan;
 }
 
 function eco_format_preferred_slot($slot)
