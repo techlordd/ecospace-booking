@@ -168,7 +168,7 @@ function eco_booking_ui()
         </p>
 
         <p id="eco_preferred_heading" class="eco-preferred-heading" style="display:none;">
-            <?php esc_html_e('Please select the office days you plan to attend.', 'ecospace-booking'); ?>
+            <?php esc_html_e("Please select the days you're coming.", 'ecospace-booking'); ?>
         </p>
         <div id="eco_preferred_days"></div>
         <p id="eco_preferred_hint" class="eco-preferred-hint"></p>

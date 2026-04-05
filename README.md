@@ -274,6 +274,7 @@ v16.6
 v16.7
 v16.8
 v16.9
+v17.0
 
 Each version improves:
 
@@ -382,6 +383,11 @@ Latest update (v16.9):
 
 - fixed recurring Expand all and Collapse all controls so they work consistently for weekly 3x and weekly 5x plans, not only monthly plans
 - Collapse all now always collapses every recurring office-day row instead of reusing the plan's default open state
+
+Latest update (v17.0):
+
+- fixed the recurring guidance heading so it remains visible when customers switch to weekly and monthly plans on the product page
+- updated the recurring instruction copy to read "Please select the days you're coming."
 
 ---
 

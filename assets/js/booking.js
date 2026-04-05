@@ -229,9 +229,6 @@
     function clearPreferredInputs() {
       preferredDays.innerHTML = "";
       recurringDatePickers = [];
-      if (preferredHeading) {
-        preferredHeading.style.display = "none";
-      }
       if (preferredHint) {
         preferredHint.textContent = "";
       }
@@ -1099,6 +1096,9 @@
       endTime.value = "";
 
       if (!selectedPlanConfig) {
+        if (preferredHeading) {
+          preferredHeading.style.display = "none";
+        }
         price.textContent = formatPrice(0);
         return;
       }
