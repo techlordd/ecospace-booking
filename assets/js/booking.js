@@ -63,6 +63,7 @@
     var startDate = byId("eco_start_date");
     var endDate = byId("eco_end_date");
     var endDateBlock = byId("eco_end_date_block");
+    var preferredHeading = byId("eco_preferred_heading");
     var preferredDays = byId("eco_preferred_days");
     var preferredHint = byId("eco_preferred_hint");
     var preferredError = byId("eco_preferred_error");
@@ -228,6 +229,9 @@
     function clearPreferredInputs() {
       preferredDays.innerHTML = "";
       recurringDatePickers = [];
+      if (preferredHeading) {
+        preferredHeading.style.display = "none";
+      }
       if (preferredHint) {
         preferredHint.textContent = "";
       }
@@ -572,7 +576,7 @@
         var dailyStartHour = Number(startTime.value || 0);
         var dailySessionHours = getDailySessionHours();
         if (!dailyStartHour) {
-          setStartTimeValidity("Please select a start time for the daily plan.");
+          setStartTimeValidity("Please select a time in for the daily plan.");
           if (shouldShowBrowserMessage && typeof startTime.reportValidity === "function") {
             startTime.reportValidity();
           }
@@ -721,7 +725,7 @@
             setRecurringSlotCollapsed(seenDates[rowDate.value], false);
             hasError = true;
             if (!message) {
-              message = data.duplicateRecurringDateMessage || "Preferred dates must be unique";
+                message = data.duplicateRecurringDateMessage || "Office dates must be unique";
             }
             continue;
           }
@@ -741,7 +745,7 @@
           setRecurringSlotCollapsed(seen[key], false);
           hasError = true;
           if (!message) {
-            message = data.duplicateRecurringSlotMessage || "Duplicate preferred slot selected";
+              message = data.duplicateRecurringSlotMessage || "Duplicate office day selected";
           }
           continue;
         }
@@ -855,7 +859,7 @@
 
       var rowTitle = document.createElement("span");
       rowTitle.className = "eco-recurring-slot-title";
-      rowTitle.textContent = slotLabel || "Session";
+      rowTitle.textContent = slotLabel || "Office Day";
 
       var rowSummary = document.createElement("span");
       rowSummary.className = "eco-recurring-slot-summary";
@@ -871,7 +875,7 @@
 
       var dateField = document.createElement("p");
       var dateLabel = document.createElement("label");
-      dateLabel.textContent = "Preferred Date";
+        dateLabel.textContent = "Office Date";
       var dateInput = document.createElement("input");
       dateInput.type = "text";
       dateInput.className = "eco_calendar";
@@ -883,7 +887,7 @@
 
       var timeStartField = document.createElement("p");
       var timeStartLabel = document.createElement("label");
-      timeStartLabel.textContent = "Preferred Start Time";
+        timeStartLabel.textContent = "Time In";
       var timeStartSelect = document.createElement("select");
       timeStartSelect.name = "eco_preferred_start_times[]";
       timeStartSelect.appendChild(createSelectPlaceholder("Select"));
@@ -896,7 +900,7 @@
 
       var timeEndField = document.createElement("p");
       var timeEndLabel = document.createElement("label");
-      timeEndLabel.textContent = "Preferred End Time";
+        timeEndLabel.textContent = "Time Out";
       var timeEndInput = document.createElement("select");
       timeEndInput.name = "eco_preferred_end_times[]";
       timeEndInput.className = "eco-recurring-end-time";
@@ -956,7 +960,7 @@
       }
 
       for (var i = 0; i < count; i += 1) {
-        var slotLabel = labelPrefix ? labelPrefix + " " + (i + 1) : "Session " + (i + 1);
+        var slotLabel = labelPrefix ? labelPrefix + " " + (i + 1) : "Office Day " + (i + 1);
         createRecurringSlotRow(slotLabel, start, end, false);
       }
     }
@@ -970,7 +974,7 @@
 
       for (var week = 1; week <= 4; week += 1) {
         for (var i = 0; i < perWeek; i += 1) {
-          createRecurringSlotRow("Week " + week + " - Session " + (i + 1), start, end, true);
+          createRecurringSlotRow("Week " + week + " - Office Day " + (i + 1), start, end, true);
         }
       }
     }
@@ -993,7 +997,7 @@
         return;
       }
 
-      createPreferredInputs(sessionCount, "Session");
+      createPreferredInputs(sessionCount, "Office Day");
     }
 
     function updateEndDateFromPlan() {
@@ -1103,6 +1107,9 @@
         endDateBlock.style.display = "none";
         byId("eco_end_time_block").style.display = "";
         byId("eco_hourly_fields").style.display = "block";
+        if (preferredHeading) {
+          preferredHeading.style.display = "none";
+        }
         if (hoursField) {
           hoursField.style.display = "";
         }
@@ -1122,19 +1129,18 @@
       if (selectedPlan === "daily") {
         endDateBlock.style.display = "none";
         byId("eco_end_time_block").style.display = "";
-        byId("eco_hourly_fields").style.display = useAdvancedConfig ? "block" : "none";
+        byId("eco_hourly_fields").style.display = "block";
+        if (preferredHeading) {
+          preferredHeading.style.display = "none";
+        }
         if (hoursField) {
           hoursField.style.display = "none";
         }
         if (dailyHint) {
-          dailyHint.style.display = useAdvancedConfig ? "" : "none";
+          dailyHint.style.display = "";
         }
-        if (useAdvancedConfig) {
-          rebuildDailyStartOptions();
-          updateDailyTimeWindow();
-        } else {
-          endTime.value = formatHour(Number(selectedPlanConfig.end_hour || closeHour));
-        }
+        rebuildDailyStartOptions();
+        updateDailyTimeWindow();
         setDisplayedPlanPrice(selectedPlan);
         return;
       }
@@ -1143,11 +1149,14 @@
       if (dailyHint) {
         dailyHint.style.display = "none";
       }
+      if (preferredHeading) {
+        preferredHeading.style.display = "block";
+      }
       endDateBlock.style.display = "none";
       updateEndDateFromPlan();
 
       if (preferredHint) {
-        preferredHint.textContent = "Select a preferred start and end time for each session. Maximum duration per session is " + recurringSessionHours + " hours.";
+          preferredHint.textContent = "Select a time in and time out for each office day. Maximum duration per office day is " + recurringSessionHours + " hours.";
       }
 
       setDisplayedPlanPrice(selectedPlan);

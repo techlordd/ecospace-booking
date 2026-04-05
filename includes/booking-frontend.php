@@ -53,9 +53,9 @@ function eco_enqueue_booking_assets()
             'bookedTimeRangeMessage' => __('This time range is already booked. Please choose another time slot.', 'ecospace-booking'),
             'dailyUnavailableMessage' => __('This date is no longer available for a daily booking.', 'ecospace-booking'),
             'availabilityRefreshErrorMessage' => __('Could not refresh availability right now. Please try again.', 'ecospace-booking'),
-            'duplicateRecurringDateMessage' => __('Preferred dates must be unique across sessions. Please pick a different date.', 'ecospace-booking'),
-            'duplicateRecurringSlotMessage' => __('You selected the same preferred date and time more than once. Please choose a unique slot.', 'ecospace-booking'),
-            'bookedRecurringSlotMessage' => __('This preferred date and time is already booked. Please select another slot.', 'ecospace-booking'),
+            'duplicateRecurringDateMessage' => __('Office dates must be unique across office days. Please pick a different date.', 'ecospace-booking'),
+            'duplicateRecurringSlotMessage' => __('You selected the same office date and time more than once. Please choose a unique office day.', 'ecospace-booking'),
+            'bookedRecurringSlotMessage' => __('This office date and time is already booked. Please select another office day.', 'ecospace-booking'),
         )
     );
 }
@@ -158,7 +158,7 @@ function eco_booking_ui()
         </p>
 
         <p>
-            <label for="eco_start_date"><?php esc_html_e('Start Date', 'ecospace-booking'); ?></label>
+            <label for="eco_start_date"><?php esc_html_e('Office Date', 'ecospace-booking'); ?></label>
             <input type="text" id="eco_start_date" name="eco_start_date" autocomplete="off" required>
         </p>
 
@@ -167,13 +167,16 @@ function eco_booking_ui()
             <input type="text" id="eco_end_date" name="eco_end_date" readonly>
         </p>
 
+        <p id="eco_preferred_heading" class="eco-preferred-heading" style="display:none;">
+            <?php esc_html_e('Please select the office days you plan to attend.', 'ecospace-booking'); ?>
+        </p>
         <div id="eco_preferred_days"></div>
         <p id="eco_preferred_hint" class="eco-preferred-hint"></p>
         <p id="eco_preferred_error" class="eco-preferred-error" style="display:none;"></p>
 
         <div id="eco_hourly_fields">
             <p>
-                <label for="eco_start_time"><?php esc_html_e('Start Time', 'ecospace-booking'); ?></label>
+                <label for="eco_start_time"><?php esc_html_e('Time In', 'ecospace-booking'); ?></label>
                 <select id="eco_start_time" name="eco_start_time">
                     <option value=""><?php esc_html_e('Select', 'ecospace-booking'); ?></option>
                     <?php for ($hour = $booking_config['open_hour']; $hour <= $booking_config['close_hour'] - 1; $hour++) : ?>
@@ -188,7 +191,7 @@ function eco_booking_ui()
         </div>
 
         <p id="eco_end_time_block">
-            <label for="eco_end_time"><?php esc_html_e('End Time', 'ecospace-booking'); ?></label>
+            <label for="eco_end_time"><?php esc_html_e('Time Out', 'ecospace-booking'); ?></label>
             <input type="text" id="eco_end_time" name="eco_end_time" readonly>
         </p>
 
@@ -201,7 +204,7 @@ function eco_booking_ui()
             <p id="eco_daily_hint" class="eco-preferred-hint" style="display:none;">
                 <?php
                 printf(
-                    esc_html__('Daily plan access is limited to %d hours from your selected start time.', 'ecospace-booking'),
+                    esc_html__('Daily plan access is limited to %d hours from your selected time in.', 'ecospace-booking'),
                     esc_html($daily_session_hours)
                 );
                 ?>
@@ -282,13 +285,13 @@ function eco_render_booking_item_data($item_data, $cart_item)
     );
 
     $item_data[] = array(
-        'key' => __('Start Date', 'ecospace-booking'),
+        'key' => __('Office Date', 'ecospace-booking'),
         'value' => $booking['start_date'],
     );
 
     if (!empty($booking['start_time']) && !empty($booking['end_time'])) {
         $item_data[] = array(
-            'key' => __('Time Window', 'ecospace-booking'),
+            'key' => __('Time In / Time Out', 'ecospace-booking'),
             'value' => eco_hour_label($booking['start_time']) . ' - ' . eco_hour_label($booking['end_time']),
         );
     }
@@ -304,13 +307,13 @@ function eco_render_booking_item_data($item_data, $cart_item)
 
         if (!empty($slot_lines)) {
             $item_data[] = array(
-                'key' => __('Preferred Sessions', 'ecospace-booking'),
+                'key' => __('Office Days', 'ecospace-booking'),
                 'value' => implode(', ', $slot_lines),
             );
         }
     } elseif (!empty($booking['preferred_days'])) {
         $item_data[] = array(
-            'key' => __('Preferred Dates', 'ecospace-booking'),
+            'key' => __('Office Dates', 'ecospace-booking'),
             'value' => implode(', ', $booking['preferred_days']),
         );
     }
@@ -328,11 +331,11 @@ function eco_add_booking_meta_to_order_item($item, $cart_item_key, $values)
     $booking = $values['eco_booking'];
 
     $item->add_meta_data(__('Booking Plan', 'ecospace-booking'), eco_plan_label($booking['plan'], (int) $item->get_product_id()), true);
-    $item->add_meta_data(__('Start Date', 'ecospace-booking'), $booking['start_date'], true);
+    $item->add_meta_data(__('Office Date', 'ecospace-booking'), $booking['start_date'], true);
 
     if (!empty($booking['start_time']) && !empty($booking['end_time'])) {
-        $item->add_meta_data(__('Start Time', 'ecospace-booking'), eco_hour_label($booking['start_time']), true);
-        $item->add_meta_data(__('End Time', 'ecospace-booking'), eco_hour_label($booking['end_time']), true);
+        $item->add_meta_data(__('Time In', 'ecospace-booking'), eco_hour_label($booking['start_time']), true);
+        $item->add_meta_data(__('Time Out', 'ecospace-booking'), eco_hour_label($booking['end_time']), true);
     }
 
     if (!empty($booking['preferred_slots']) && is_array($booking['preferred_slots'])) {
@@ -345,10 +348,10 @@ function eco_add_booking_meta_to_order_item($item, $cart_item_key, $values)
         }
 
         if (!empty($slot_lines)) {
-            $item->add_meta_data(__('Preferred Sessions', 'ecospace-booking'), implode(', ', $slot_lines), true);
+            $item->add_meta_data(__('Office Days', 'ecospace-booking'), implode(', ', $slot_lines), true);
         }
     } elseif (!empty($booking['preferred_days'])) {
-        $item->add_meta_data(__('Preferred Dates', 'ecospace-booking'), implode(', ', $booking['preferred_days']), true);
+        $item->add_meta_data(__('Office Dates', 'ecospace-booking'), implode(', ', $booking['preferred_days']), true);
     }
 
     $item->add_meta_data('_eco_booking_payload', wp_json_encode($booking), true);

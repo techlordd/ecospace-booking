@@ -40,6 +40,13 @@
   font-size: 14px;
 }
 
+.ecospace-booking-ui .eco-preferred-heading {
+  margin: 12px 0 8px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+}
+
 .ecospace-booking-ui .eco-recurring-slot {
   margin-bottom: 14px;
   padding: 10px;
