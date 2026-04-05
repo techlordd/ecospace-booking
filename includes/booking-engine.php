@@ -345,6 +345,12 @@ function eco_booked_slot_meta_key($date)
     return '_eco_booked_slots_' . $date;
 }
 
+function eco_get_booking_pending_hold_minutes()
+{
+    $minutes = (int) apply_filters('eco_booking_pending_hold_minutes', 15);
+    return max(1, $minutes);
+}
+
 function eco_get_booked_slots_for_date($product_id, $date)
 {
     $meta_key = eco_booked_slot_meta_key($date);
@@ -399,8 +405,25 @@ function eco_is_booking_blocking_order_status($order_id)
         return false;
     }
 
+    $status = $order->get_status();
     $blocking_statuses = array('processing', 'on-hold', 'completed');
-    return in_array($order->get_status(), $blocking_statuses, true);
+    if (in_array($status, $blocking_statuses, true)) {
+        return true;
+    }
+
+    if ($status !== 'pending') {
+        return false;
+    }
+
+    $created_at = $order->get_date_created();
+    if (!$created_at) {
+        return false;
+    }
+
+    $hold_seconds = eco_get_booking_pending_hold_minutes() * MINUTE_IN_SECONDS;
+    $age_seconds = current_time('timestamp', true) - $created_at->getTimestamp();
+
+    return $age_seconds < $hold_seconds;
 }
 
 function eco_do_slots_overlap($start_time, $end_time, $booked_start_time, $booked_end_time)
@@ -497,10 +520,7 @@ function eco_get_product_booked_slot_map($product_id)
             continue;
         }
 
-        $stored = isset($meta_values[0]) ? maybe_unserialize($meta_values[0]) : array();
-        if (!is_array($stored)) {
-            continue;
-        }
+        $stored = eco_get_booked_slots_for_date($product_id, $date);
 
         $date_slots = array();
         foreach ($stored as $slot) {
@@ -527,10 +547,6 @@ function eco_lock_paid_order_slots($order_id)
     }
 
     if (!eco_is_booking_blocking_order_status($order_id)) {
-        return;
-    }
-
-    if ($order->get_meta('_eco_slots_locked', true) === 'yes') {
         return;
     }
 

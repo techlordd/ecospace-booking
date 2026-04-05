@@ -276,6 +276,7 @@ v16.8
 v16.9
 v17.0
 v17.1
+v17.2
 
 Each version improves:
 
@@ -394,6 +395,11 @@ Latest update (v17.1):
 
 - made the booking form enforce the necessary plan-specific fields before submit so users cannot book with missing time selections
 - added clear color separation for weekly and monthly recurring accordions so completed office days are visually distinct from incomplete ones
+
+Latest update (v17.2):
+
+- pending orders now place a temporary hold on booked slots so the same date and time cannot be taken by someone else during checkout
+- storefront availability now uses the same filtered blocking-slot rules as backend validation, so stale refunded or expired holds stop appearing unavailable
 
 ---
 
