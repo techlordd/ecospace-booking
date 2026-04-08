@@ -1162,7 +1162,7 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '</form>';
 
     echo '<p class="eco-bookings-count"><strong>' . esc_html(sprintf(__('Sessions found: %d', 'ecospace-booking'), count($rows))) . '</strong></p>';
-    echo '<p id="eco_ops_refresh_note" class="eco-bookings-refresh-note">' . esc_html__('Auto-refresh every 45 seconds.', 'ecospace-booking') . ' <button type="button" class="button button-link" id="eco_ops_refresh_toggle">' . esc_html__('Pause', 'ecospace-booking') . '</button></p>';
+    echo '<p id="eco_ops_refresh_note" class="eco-bookings-refresh-note">' . esc_html__('Auto-refresh every 10 minutes.', 'ecospace-booking') . ' <button type="button" class="button button-link" id="eco_ops_refresh_toggle">' . esc_html__('Pause', 'ecospace-booking') . '</button></p>';
 
     echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="eco_bulk_ops_form" class="eco-bookings-bulk-form">';
     wp_nonce_field('eco_bulk_booking_ops_action');
@@ -1252,7 +1252,7 @@ function eco_render_workspace_bookings_interface($args = array())
           paused = !paused;
           refreshBtn.textContent = paused ? "Resume" : "Pause";
           if (refreshLabel) {
-            refreshLabel.firstChild.textContent = paused ? "Auto-refresh paused. " : "Auto-refresh every 45 seconds. ";
+            refreshLabel.firstChild.textContent = paused ? "Auto-refresh paused. " : "Auto-refresh every 10 minutes. ";
           }
         });
       }
@@ -1294,7 +1294,7 @@ function eco_render_workspace_bookings_interface($args = array())
         }
 
         window.location.reload();
-      }, 45000);
+    }, 600000);
     })();
     </script>';
     echo '</div>';
