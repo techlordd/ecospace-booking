@@ -422,3 +422,29 @@ function eco_handle_order_slot_status_transition($order_id, $from_status, $to_st
         eco_unlock_order_slots($order_id);
     }
 }
+
+add_shortcode('eco_workspace_bookings', 'eco_workspace_bookings_shortcode');
+function eco_workspace_bookings_shortcode($atts = array())
+{
+    if (!is_user_logged_in()) {
+        return '<div class="eco-workspace-bookings-shortcode"><p>' . esc_html__('Please log in with a staff account to manage workspace bookings.', 'ecospace-booking') . '</p></div>';
+    }
+
+    if (!current_user_can('manage_woocommerce')) {
+        return '<div class="eco-workspace-bookings-shortcode"><p>' . esc_html__('You are not allowed to manage workspace bookings from this page.', 'ecospace-booking') . '</p></div>';
+    }
+
+    $page_id = get_queried_object_id();
+    $base_url = $page_id ? get_permalink($page_id) : home_url('/');
+
+    ob_start();
+    eco_render_workspace_bookings_interface(
+        array(
+            'context' => 'frontend',
+            'base_url' => $base_url,
+            'reset_url' => $base_url,
+            'heading_tag' => 'h2',
+        )
+    );
+    return (string) ob_get_clean();
+}

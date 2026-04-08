@@ -277,6 +277,7 @@ v16.9
 v17.0
 v17.1
 v17.2
+v17.3
 
 Each version improves:
 
@@ -400,6 +401,11 @@ Latest update (v17.2):
 
 - pending orders now place a temporary hold on booked slots so the same date and time cannot be taken by someone else during checkout
 - storefront availability now uses the same filtered blocking-slot rules as backend validation, so stale refunded or expired holds stop appearing unavailable
+
+Latest update (v17.3):
+
+- added a frontend workspace bookings management screen via the `[eco_workspace_bookings]` shortcode for authorized staff users
+- reused the same booking filters, seat assignment, ops-status updates, bulk actions, and auto-refresh flow from the WooCommerce admin bookings page
 
 ---
 
