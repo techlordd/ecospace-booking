@@ -279,6 +279,7 @@ v17.1
 v17.2
 v17.3
 v17.4
+v17.5
 
 Each version improves:
 
@@ -407,6 +408,14 @@ Latest update (v17.3):
 
 - added a frontend workspace bookings management screen via the `[eco_workspace_bookings]` shortcode for authorized staff users
 - reused the same booking filters, seat assignment, ops-status updates, bulk actions, and auto-refresh flow from the WooCommerce admin bookings page
+
+Latest update (v17.5):
+
+- removed the Assigned Seat column from the bookings table and merged Date and Time into a single Date & Time column
+- added striped alternating row colors and a hover highlight for easier row tracking
+- made the table header sticky so column labels stay visible while scrolling long lists
+- added colored status badges for ops status (Booked/Assigned/Checked In/Completed/No Show/Cancelled), payment state (Paid/Unpaid), and plan type
+- improved the Action column inline form to stack controls vertically for a cleaner appearance
 
 Latest update (v17.4):
 

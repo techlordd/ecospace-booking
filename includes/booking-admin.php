@@ -985,26 +985,50 @@ function eco_render_workspace_bookings_styles($context = 'admin')
     }
 
     .eco-workspace-bookings-shell thead th {
-        background: #f8fafc;
-        font-size: 12px;
+        background: #f1f5f9;
+        font-size: 11px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.05em;
         color: #475467;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    .eco-workspace-bookings-shell tbody tr:nth-child(odd) {
+        background: #ffffff;
     }
 
     .eco-workspace-bookings-shell tbody tr:nth-child(even) {
-        background: #fcfcfd;
+        background: #f8fafc;
+    }
+
+    .eco-workspace-bookings-shell tbody tr:hover {
+        background: #eef2ff;
+        transition: background 0.12s ease;
     }
 
     .eco-workspace-bookings-shell .eco-bookings-inline-form {
         display: flex;
+        flex-direction: column;
         gap: 6px;
-        flex-wrap: wrap;
-        align-items: center;
+    }
+
+    .eco-workspace-bookings-shell .eco-bookings-inline-form select {
+        min-width: 140px;
+        min-height: 32px;
+        font-size: 12px;
+    }
+
+    .eco-workspace-bookings-shell .eco-bookings-inline-form .button {
+        align-self: flex-start;
     }
 
     .eco-workspace-bookings-shell .eco-bookings-empty {
-        padding: 18px;
+        padding: 24px 18px;
+        color: #667085;
+        font-style: italic;
     }
 
     .eco-workspace-bookings-shell .notice,
@@ -1042,6 +1066,42 @@ function eco_render_workspace_bookings_styles($context = 'admin')
     .eco-workspace-bookings-shortcode button,
     .eco-workspace-bookings-shortcode input[type="submit"] {
         min-height: 38px;
+    }
+
+    /* Status badges */
+    .eco-status-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 50px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        line-height: 1.6;
+        white-space: nowrap;
+        text-transform: capitalize;
+    }
+    .eco-badge-ops-booked      { background: #dbeafe; color: #1d4ed8; }
+    .eco-badge-ops-assigned    { background: #ede9fe; color: #6d28d9; }
+    .eco-badge-ops-checked_in  { background: #fef3c7; color: #b45309; }
+    .eco-badge-ops-completed   { background: #dcfce7; color: #15803d; }
+    .eco-badge-ops-no_show     { background: #fee2e2; color: #b91c1c; }
+    .eco-badge-ops-cancelled   { background: #f3f4f6; color: #4b5563; }
+    .eco-badge-paid   { background: #dcfce7; color: #15803d; }
+    .eco-badge-unpaid { background: #fff7ed; color: #c2410c; }
+    .eco-badge-plan   { background: #f0f4ff; color: #3b4fa0; }
+
+    /* Date/time cell */
+    .eco-date-cell {
+        display: block;
+        font-weight: 600;
+        color: #101828;
+        font-size: 13px;
+    }
+    .eco-time-cell {
+        display: block;
+        font-size: 12px;
+        color: #667085;
+        margin-top: 2px;
     }
 
     @media (max-width: 782px) {
@@ -1186,11 +1246,9 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<table id="eco_ops_table">';
     echo '<thead><tr>';
     echo '<th><input type="checkbox" id="eco_select_all_rows"></th>';
-    echo '<th>' . esc_html__('Date', 'ecospace-booking') . '</th>';
-    echo '<th>' . esc_html__('Time', 'ecospace-booking') . '</th>';
+    echo '<th>' . esc_html__('Date & Time', 'ecospace-booking') . '</th>';
     echo '<th>' . esc_html__('Customer', 'ecospace-booking') . '</th>';
     echo '<th>' . esc_html__('Booked Seat', 'ecospace-booking') . '</th>';
-    echo '<th>' . esc_html__('Assigned Seat', 'ecospace-booking') . '</th>';
     echo '<th>' . esc_html__('Plan', 'ecospace-booking') . '</th>';
     echo '<th>' . esc_html__('Payment/Order', 'ecospace-booking') . '</th>';
     echo '<th>' . esc_html__('Ops Status', 'ecospace-booking') . '</th>';
@@ -1198,19 +1256,18 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '</tr></thead><tbody>';
 
     if (empty($rows)) {
-        echo '<tr><td colspan="10" class="eco-bookings-empty">' . esc_html__('No bookings found for current filters.', 'ecospace-booking') . '</td></tr>';
+        echo '<tr><td colspan="8" class="eco-bookings-empty">' . esc_html__('No bookings found for current filters.', 'ecospace-booking') . '</td></tr>';
     } else {
         foreach ($rows as $row) {
+            $ops_slug = sanitize_html_class($row['ops_status']);
             echo '<tr>';
             echo '<td><input type="checkbox" class="eco-row-select" value="' . esc_attr((string) $row['order_id'] . ':' . (string) $row['item_id']) . '"></td>';
-            echo '<td>' . esc_html($row['session_date']) . '</td>';
-            echo '<td>' . esc_html($row['session_label']) . '</td>';
+            echo '<td><span class="eco-date-cell">' . esc_html($row['session_date']) . '</span><span class="eco-time-cell">' . esc_html($row['session_label']) . '</span></td>';
             echo '<td><strong>' . esc_html($row['customer_name']) . '</strong><br><small>' . esc_html($row['customer_email']) . '</small><br><a href="' . esc_url(admin_url('post.php?post=' . (int) $row['order_id'] . '&action=edit')) . '">#' . esc_html((string) $row['order_id']) . '</a></td>';
             echo '<td>' . esc_html($row['product_name']) . '</td>';
-            echo '<td>' . esc_html($row['assigned_seat_label']) . '</td>';
-            echo '<td>' . esc_html($row['plan']) . '</td>';
-            echo '<td>' . esc_html(ucfirst($row['order_status'])) . ' / ' . esc_html($row['is_paid'] ? __('Paid', 'ecospace-booking') : __('Unpaid', 'ecospace-booking')) . '</td>';
-            echo '<td>' . esc_html($ops_labels[$row['ops_status']] ?? ucfirst($row['ops_status'])) . '</td>';
+            echo '<td><span class="eco-status-badge eco-badge-plan">' . esc_html($row['plan']) . '</span></td>';
+            echo '<td>' . esc_html(ucfirst($row['order_status'])) . '<br><span class="eco-status-badge ' . ($row['is_paid'] ? 'eco-badge-paid' : 'eco-badge-unpaid') . '">' . esc_html($row['is_paid'] ? __('Paid', 'ecospace-booking') : __('Unpaid', 'ecospace-booking')) . '</span></td>';
+            echo '<td><span class="eco-status-badge eco-badge-ops-' . esc_attr($ops_slug) . '">' . esc_html($ops_labels[$row['ops_status']] ?? ucfirst($row['ops_status'])) . '</span></td>';
             echo '<td>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="eco-bookings-inline-form">';
             wp_nonce_field('eco_booking_ops_' . (int) $row['order_id'] . '_' . (int) $row['item_id']);
