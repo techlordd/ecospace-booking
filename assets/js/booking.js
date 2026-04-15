@@ -73,6 +73,8 @@
     var endTime = byId("eco_end_time");
     var dailyHint = byId("eco_daily_hint");
     var price = byId("eco_price");
+    var originalPrice = byId("eco_original_price");
+    var discountBadge = byId("eco_discount_badge");
     var form = root.closest("form");
 
     var plans = data.plans || {};
@@ -144,6 +146,41 @@
       return Number(planConfig.price || 0);
     }
 
+    function getActiveDiscountPercent(planKey) {
+      var disc = data.discount || {};
+      if (!disc.enabled) { return 0; }
+      var pct = Number(disc.percent || 0);
+      if (pct <= 0) { return 0; }
+      var today = disc.today || "";
+      if (disc.start && today < disc.start) { return 0; }
+      if (disc.end   && today > disc.end)   { return 0; }
+      var plans = disc.plans || [];
+      if (plans.length > 0 && plans.indexOf(planKey) === -1) { return 0; }
+      return Math.min(100, pct);
+    }
+
+    function applyDiscount(basePrice, planKey) {
+      var pct = getActiveDiscountPercent(planKey);
+      if (pct <= 0) { return basePrice; }
+      return Math.round(basePrice * (1 - pct / 100) * 100) / 100;
+    }
+
+    function showDiscountUI(basePrice, discountedPrice, planKey) {
+      if (!originalPrice || !discountBadge) { return; }
+      var pct = getActiveDiscountPercent(planKey);
+      if (pct > 0 && discountedPrice < basePrice) {
+        originalPrice.textContent = formatPrice(basePrice);
+        originalPrice.style.display = "inline";
+        discountBadge.textContent = "-" + pct + "%";
+        discountBadge.style.display = "inline";
+      } else {
+        originalPrice.textContent = "";
+        originalPrice.style.display = "none";
+        discountBadge.textContent = "";
+        discountBadge.style.display = "none";
+      }
+    }
+
     function getRecurringSessionsCount(planKey) {
       var planConfig = getPlanConfig(planKey);
       if (!planConfig) {
@@ -166,7 +203,10 @@
     }
 
     function setDisplayedPlanPrice(planKey) {
-      price.textContent = formatPrice(getPlanPrice(planKey));
+      var base = getPlanPrice(planKey);
+      var discounted = applyDiscount(base, planKey);
+      price.textContent = formatPrice(discounted);
+      showDiscountUI(base, discounted, planKey);
     }
 
     // Sync WooCommerce product price display when booking plan price changes
@@ -1073,12 +1113,16 @@
       endTime.value = "";
 
       if (!selectedHours) {
-        price.textContent = formatPrice(useAdvancedConfig ? defaultPrice : 0);
+        var defBase = useAdvancedConfig ? defaultPrice : 0;
+        price.textContent = formatPrice(applyDiscount(defBase, "hourly"));
+        showDiscountUI(defBase, applyDiscount(defBase, "hourly"), "hourly");
         return;
       }
 
       if (!selectedStartHour) {
-        price.textContent = formatPrice(useAdvancedConfig ? hourlyRate * selectedHours : 0);
+        var noTimeBase = useAdvancedConfig ? hourlyRate * selectedHours : 0;
+        price.textContent = formatPrice(applyDiscount(noTimeBase, "hourly"));
+        showDiscountUI(noTimeBase, applyDiscount(noTimeBase, "hourly"), "hourly");
         return;
       }
 
@@ -1086,19 +1130,25 @@
       if (endHour > closeHour) {
         alert(data.invalidHoursMessage || "Hours exceed closing time");
         hours.value = String(minimumHours);
-        price.textContent = formatPrice(hourlyRate * minimumHours);
+        var excBase = hourlyRate * minimumHours;
+        price.textContent = formatPrice(applyDiscount(excBase, "hourly"));
+        showDiscountUI(excBase, applyDiscount(excBase, "hourly"), "hourly");
         return;
       }
 
       if (startDate.value && doesRangeOverlap(startDate.value, selectedStartHour, endHour)) {
         setHourlyConflictState(data.bookedTimeRangeMessage || "This time range is already booked.");
         endTime.value = "";
-        price.textContent = formatPrice(hourlyRate * selectedHours);
+        var conflictBase = hourlyRate * selectedHours;
+        price.textContent = formatPrice(applyDiscount(conflictBase, "hourly"));
+        showDiscountUI(conflictBase, applyDiscount(conflictBase, "hourly"), "hourly");
         return;
       }
 
       endTime.value = formatHour(endHour);
-      price.textContent = formatPrice(hourlyRate * selectedHours);
+      var finalBase = hourlyRate * selectedHours;
+      price.textContent = formatPrice(applyDiscount(finalBase, "hourly"));
+      showDiscountUI(finalBase, applyDiscount(finalBase, "hourly"), "hourly");
     }
 
     function syncStartDateAvailability() {

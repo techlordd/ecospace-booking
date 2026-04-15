@@ -29,6 +29,24 @@
   font-size: 16px;
 }
 
+.ecospace-booking-ui .eco-original-price {
+  margin-right: 6px;
+  color: #888;
+  text-decoration: line-through;
+  font-size: 14px;
+}
+
+.ecospace-booking-ui .eco-discount-badge {
+  margin-left: 6px;
+  padding: 2px 7px;
+  background: #16a34a;
+  color: #fff;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
 .ecospace-booking-ui .eco-capacity-row {
   margin-top: 4px;
   color: #444;

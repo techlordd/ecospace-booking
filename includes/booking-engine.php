@@ -798,6 +798,37 @@ function eco_rebuild_product_booked_slots($product_id)
     );
 }
 
+function eco_get_active_product_discount($product_id, $plan)
+{
+    if (get_post_meta($product_id, '_eco_discount_enabled', true) !== 'yes') {
+        return 0.0;
+    }
+
+    $pct = (float) get_post_meta($product_id, '_eco_discount_percent', true);
+    if ($pct <= 0) {
+        return 0.0;
+    }
+
+    $today = current_time('Y-m-d');
+    $start = (string) get_post_meta($product_id, '_eco_discount_start', true);
+    $end   = (string) get_post_meta($product_id, '_eco_discount_end', true);
+
+    if ($start !== '' && $today < $start) {
+        return 0.0;
+    }
+
+    if ($end !== '' && $today > $end) {
+        return 0.0;
+    }
+
+    $plans = (array) get_post_meta($product_id, '_eco_discount_plans', true);
+    if (!empty($plans) && !in_array($plan, $plans, true)) {
+        return 0.0;
+    }
+
+    return min(100.0, $pct);
+}
+
 function eco_plan_price($plan, $hourly_rate, $hours, $product_id = 0)
 {
     $plan_config = eco_get_booking_plan($product_id, $plan);
@@ -806,10 +837,19 @@ function eco_plan_price($plan, $hourly_rate, $hours, $product_id = 0)
     }
 
     if (($plan_config['type'] ?? '') === 'hourly') {
-        return max(0, (float) $hourly_rate) * max(0, (int) $hours);
+        $base_price = max(0, (float) $hourly_rate) * max(0, (int) $hours);
+    } else {
+        $base_price = max(0, (float) ($plan_config['price'] ?? 0));
     }
 
-    return max(0, (float) ($plan_config['price'] ?? 0));
+    if ($product_id > 0) {
+        $discount_pct = eco_get_active_product_discount($product_id, $plan);
+        if ($discount_pct > 0) {
+            return round($base_price * (1 - $discount_pct / 100.0), 2);
+        }
+    }
+
+    return $base_price;
 }
 
 function eco_expected_preferred_days($plan, $product_id = 0)
@@ -923,25 +963,20 @@ function eco_validate_booking_payload($product_id)
     }
 
     if ($plan === 'daily') {
-        if (eco_is_advanced_booking_config_enabled($product_id)) {
-            $daily_window_start = (int) ($daily_plan['start_hour'] ?? $config['open_hour']);
-            $daily_window_end = (int) ($daily_plan['end_hour'] ?? $config['close_hour']);
-            $daily_session_hours = max(1, (int) ($daily_plan['session_hours'] ?? 8));
-            $start_time = isset($_POST['eco_start_time']) ? (int) sanitize_text_field(wp_unslash($_POST['eco_start_time'])) : 0;
+        $daily_window_start = (int) ($daily_plan['start_hour'] ?? $config['open_hour']);
+        $daily_window_end = (int) ($daily_plan['end_hour'] ?? $config['close_hour']);
+        $daily_session_hours = max(1, (int) ($daily_plan['session_hours'] ?? 8));
+        $start_time = isset($_POST['eco_start_time']) ? (int) sanitize_text_field(wp_unslash($_POST['eco_start_time'])) : 0;
 
-            if ($start_time < $daily_window_start || $start_time > ($daily_window_end - $daily_session_hours)) {
-                return array('ok' => false, 'message' => __('Please select a valid daily start time.', 'ecospace-booking'));
-            }
+        if ($start_time < $daily_window_start || $start_time > ($daily_window_end - $daily_session_hours)) {
+            return array('ok' => false, 'message' => __('Please select a valid daily time in.', 'ecospace-booking'));
+        }
 
-            $payload['start_time'] = $start_time;
-            $payload['end_time'] = $start_time + $daily_session_hours;
+        $payload['start_time'] = $start_time;
+        $payload['end_time'] = $start_time + $daily_session_hours;
 
-            if ($payload['end_time'] > $daily_window_end || $payload['end_time'] > $config['close_hour']) {
-                return array('ok' => false, 'message' => sprintf(__('Daily access must end before %s.', 'ecospace-booking'), eco_hour_label(min($daily_window_end, $config['close_hour']))));
-            }
-        } else {
-            $payload['start_time'] = (int) ($daily_plan['start_hour'] ?? $config['open_hour']);
-            $payload['end_time'] = (int) ($daily_plan['end_hour'] ?? $config['close_hour']);
+        if ($payload['end_time'] > $daily_window_end || $payload['end_time'] > $config['close_hour']) {
+            return array('ok' => false, 'message' => sprintf(__('Daily access must end before %s.', 'ecospace-booking'), eco_hour_label(min($daily_window_end, $config['close_hour']))));
         }
 
         $payload['hours'] = $payload['end_time'] - $payload['start_time'];
@@ -959,15 +994,15 @@ function eco_validate_booking_payload($product_id)
 
     $expected_days = eco_expected_preferred_days($plan, $product_id);
     if (count($preferred_days) !== $expected_days) {
-        return array('ok' => false, 'message' => sprintf(__('Please select exactly %d preferred dates.', 'ecospace-booking'), $expected_days));
+        return array('ok' => false, 'message' => sprintf(__('Please select exactly %d office dates.', 'ecospace-booking'), $expected_days));
     }
 
     if (count($preferred_start_times) !== $expected_days) {
-        return array('ok' => false, 'message' => sprintf(__('Please select a preferred start time for each of the %d preferred dates.', 'ecospace-booking'), $expected_days));
+        return array('ok' => false, 'message' => sprintf(__('Please select a time in for each of the %d office dates.', 'ecospace-booking'), $expected_days));
     }
 
     if (count($preferred_end_times) !== $expected_days) {
-        return array('ok' => false, 'message' => sprintf(__('Please select a preferred end time for each of the %d preferred dates.', 'ecospace-booking'), $expected_days));
+        return array('ok' => false, 'message' => sprintf(__('Please select a time out for each of the %d office dates.', 'ecospace-booking'), $expected_days));
     }
 
     $parsed_preferred = array();
@@ -977,40 +1012,40 @@ function eco_validate_booking_payload($product_id)
     foreach ($preferred_days as $index => $day) {
         $d = eco_parse_date($day);
         if (!$d) {
-            return array('ok' => false, 'message' => __('One or more preferred dates are invalid.', 'ecospace-booking'));
+            return array('ok' => false, 'message' => __('One or more office dates are invalid.', 'ecospace-booking'));
         }
 
         if ($d < $start_date || $d > $end_date) {
-            return array('ok' => false, 'message' => __('Preferred dates must stay within the booking window.', 'ecospace-booking'));
+            return array('ok' => false, 'message' => __('Office dates must stay within the booking window.', 'ecospace-booking'));
         }
 
         $start_time = (int) $preferred_start_times[$index];
         if ($start_time < $config['recurring_start_min_hour'] || $start_time > $config['recurring_start_max_hour']) {
-            return array('ok' => false, 'message' => __('Recurring start time must be within workspace opening hours.', 'ecospace-booking'));
+            return array('ok' => false, 'message' => __('Time in must be within workspace opening hours.', 'ecospace-booking'));
         }
 
         $end_time = (int) $preferred_end_times[$index];
         if ($end_time <= $start_time) {
-            return array('ok' => false, 'message' => __('End time must be after start time for each preferred session.', 'ecospace-booking'));
+            return array('ok' => false, 'message' => __('Time out must be after time in for each office day.', 'ecospace-booking'));
         }
 
         if (($end_time - $start_time) > $config['recurring_session_hours']) {
-            return array('ok' => false, 'message' => sprintf(__('Preferred session duration cannot exceed %d hours.', 'ecospace-booking'), $config['recurring_session_hours']));
+            return array('ok' => false, 'message' => sprintf(__('Office day duration cannot exceed %d hours.', 'ecospace-booking'), $config['recurring_session_hours']));
         }
 
         if ($end_time > $config['close_hour']) {
-            return array('ok' => false, 'message' => sprintf(__('Recurring session exceeds closing time (%s).', 'ecospace-booking'), eco_hour_label($config['close_hour'])));
+            return array('ok' => false, 'message' => sprintf(__('Office day exceeds closing time (%s).', 'ecospace-booking'), eco_hour_label($config['close_hour'])));
         }
 
         $formatted_day = $d->format('Y-m-d');
         if (isset($date_keys[$formatted_day])) {
-            return array('ok' => false, 'message' => __('Preferred dates must be unique.', 'ecospace-booking'));
+            return array('ok' => false, 'message' => __('Office dates must be unique.', 'ecospace-booking'));
         }
         $date_keys[$formatted_day] = true;
 
         $slot_key = $formatted_day . '|' . $start_time . '|' . $end_time;
         if (isset($slot_keys[$slot_key])) {
-            return array('ok' => false, 'message' => __('Preferred date and time combinations must be unique.', 'ecospace-booking'));
+            return array('ok' => false, 'message' => __('Office date and time combinations must be unique.', 'ecospace-booking'));
         }
         $slot_keys[$slot_key] = true;
 

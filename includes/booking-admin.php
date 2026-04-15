@@ -391,6 +391,50 @@ function eco_product_fields()
     echo '</div>';
     echo '</div>';
 
+    // ── Discount / Promotion panel ──────────────────────────────────────────
+    $discount_enabled     = get_post_meta($product_id, '_eco_discount_enabled', true) === 'yes';
+    $discount_percent     = (float) get_post_meta($product_id, '_eco_discount_percent', true);
+    $discount_start       = (string) get_post_meta($product_id, '_eco_discount_start', true);
+    $discount_end         = (string) get_post_meta($product_id, '_eco_discount_end', true);
+    $discount_plans_saved = (array)  get_post_meta($product_id, '_eco_discount_plans', true);
+
+    echo '<div class="eco-booking-panel" style="margin-top:20px;">';
+    echo '<h3 style="margin:0 0 12px;">' . esc_html__('Promotion / Discount', 'ecospace-booking') . '</h3>';
+
+    echo '<p class="form-field">';
+    echo '<label style="display:inline-flex;align-items:center;gap:6px;font-weight:600;">';
+    echo '<input type="checkbox" name="_eco_discount_enabled" value="yes" ' . checked($discount_enabled, true, false) . '>';
+    echo esc_html__('Enable discount for this product', 'ecospace-booking');
+    echo '</label>';
+    echo '</p>';
+
+    echo '<p class="form-field"><label for="_eco_discount_percent">' . esc_html__('Discount %', 'ecospace-booking') . '</label>';
+    echo '<input type="number" id="_eco_discount_percent" name="_eco_discount_percent" value="' . esc_attr((string) $discount_percent) . '" min="0" max="100" step="0.01" style="max-width:120px;">';
+    echo '<span class="description">&nbsp;' . esc_html__('Enter 100 for fully free. Enter 50 for half price.', 'ecospace-booking') . '</span>';
+    echo '</p>';
+
+    echo '<p class="form-field"><label for="_eco_discount_start">' . esc_html__('Valid From', 'ecospace-booking') . '</label>';
+    echo '<input type="date" id="_eco_discount_start" name="_eco_discount_start" value="' . esc_attr($discount_start) . '" style="max-width:180px;">';
+    echo '<span class="description">&nbsp;' . esc_html__('Leave blank for no start restriction.', 'ecospace-booking') . '</span>';
+    echo '</p>';
+
+    echo '<p class="form-field"><label for="_eco_discount_end">' . esc_html__('Valid Until', 'ecospace-booking') . '</label>';
+    echo '<input type="date" id="_eco_discount_end" name="_eco_discount_end" value="' . esc_attr($discount_end) . '" style="max-width:180px;">';
+    echo '<span class="description">&nbsp;' . esc_html__('Leave blank for no expiry.', 'ecospace-booking') . '</span>';
+    echo '</p>';
+
+    echo '<p class="form-field"><label>' . esc_html__('Apply to Plans', 'ecospace-booking') . '</label>';
+    echo '<span class="description" style="display:block;margin-bottom:6px;">' . esc_html__('Leave all unchecked to apply to all plans.', 'ecospace-booking') . '</span>';
+    foreach (array('hourly', 'daily', 'weekly3', 'weekly5', 'monthly3', 'monthly5') as $pk) {
+        $pk_checked = in_array($pk, $discount_plans_saved, true);
+        echo '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;">';
+        echo '<input type="checkbox" name="_eco_discount_plans[]" value="' . esc_attr($pk) . '" ' . checked($pk_checked, true, false) . '>';
+        echo esc_html(eco_plan_label($pk, $product_id));
+        echo '</label>';
+    }
+    echo '</p>';
+    echo '</div>';
+
     echo '<p class="form-field">';
     echo '<span class="description">' . esc_html__('Recurring plans still require a preferred date, start time, and end time per session. Validation now follows the product settings above instead of fixed code values.', 'ecospace-booking') . '</span>';
     echo '</p>';
@@ -473,6 +517,28 @@ function eco_save_fields($post_id)
             update_post_meta($post_id, $meta_key, wc_format_decimal(wp_unslash($_POST[$meta_key])));
         }
     }
+
+    // Discount meta
+    update_post_meta($post_id, '_eco_discount_enabled', isset($_POST['_eco_discount_enabled']) ? 'yes' : 'no');
+
+    if (isset($_POST['_eco_discount_percent'])) {
+        $pct = min(100.0, max(0.0, (float) wp_unslash($_POST['_eco_discount_percent'])));
+        update_post_meta($post_id, '_eco_discount_percent', $pct);
+    }
+
+    if (isset($_POST['_eco_discount_start'])) {
+        $start = sanitize_text_field(wp_unslash($_POST['_eco_discount_start']));
+        update_post_meta($post_id, '_eco_discount_start', preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ? $start : '');
+    }
+
+    if (isset($_POST['_eco_discount_end'])) {
+        $end = sanitize_text_field(wp_unslash($_POST['_eco_discount_end']));
+        update_post_meta($post_id, '_eco_discount_end', preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) ? $end : '');
+    }
+
+    $plans_posted = isset($_POST['_eco_discount_plans']) ? (array) $_POST['_eco_discount_plans'] : array();
+    $allowed_plans = array('hourly', 'daily', 'weekly3', 'weekly5', 'monthly3', 'monthly5');
+    update_post_meta($post_id, '_eco_discount_plans', array_values(array_intersect($plans_posted, $allowed_plans)));
 }
 
 add_action('admin_post_eco_rebuild_product_slots', 'eco_rebuild_product_slots_action');

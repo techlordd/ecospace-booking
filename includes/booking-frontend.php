@@ -56,6 +56,14 @@ function eco_enqueue_booking_assets()
             'duplicateRecurringDateMessage' => __('Office dates must be unique across office days. Please pick a different date.', 'ecospace-booking'),
             'duplicateRecurringSlotMessage' => __('You selected the same office date and time more than once. Please choose a unique office day.', 'ecospace-booking'),
             'bookedRecurringSlotMessage' => __('This office date and time is already booked. Please select another office day.', 'ecospace-booking'),
+            'discount' => array(
+                'enabled' => get_post_meta($product->get_id(), '_eco_discount_enabled', true) === 'yes',
+                'percent' => (float) get_post_meta($product->get_id(), '_eco_discount_percent', true),
+                'start'   => (string) get_post_meta($product->get_id(), '_eco_discount_start', true),
+                'end'     => (string) get_post_meta($product->get_id(), '_eco_discount_end', true),
+                'plans'   => (array)  get_post_meta($product->get_id(), '_eco_discount_plans', true),
+                'today'   => current_time('Y-m-d'),
+            ),
         )
     );
 }
@@ -197,7 +205,9 @@ function eco_booking_ui()
 
         <p class="eco-price-row">
             <strong><?php esc_html_e('Price:', 'ecospace-booking'); ?></strong>
+            <span id="eco_original_price" class="eco-original-price" style="display:none;"></span>
             <span id="eco_price"><?php echo esc_html(wp_strip_all_tags(wc_price($initial_booking_price))); ?></span>
+            <span id="eco_discount_badge" class="eco-discount-badge" style="display:none;"></span>
         </p>
 
         <?php if ($advanced_enabled) : ?>
