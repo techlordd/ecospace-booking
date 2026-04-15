@@ -280,6 +280,7 @@ v17.2
 v17.3
 v17.4
 v17.5
+v17.6
 
 Each version improves:
 
@@ -408,6 +409,15 @@ Latest update (v17.3):
 
 - added a frontend workspace bookings management screen via the `[eco_workspace_bookings]` shortcode for authorized staff users
 - reused the same booking filters, seat assignment, ops-status updates, bulk actions, and auto-refresh flow from the WooCommerce admin bookings page
+
+Latest update (v17.6):
+
+- added pagination to the workspace bookings management table with 25 rows per page
+- shows "Showing X–Y of N sessions" when results span multiple pages and "N sessions found" for single-page results
+- numbered page links with Prev and Next controls, smart ellipsis gaps for large page counts
+- pagination works on both the WooCommerce admin bookings page and the frontend shortcode page
+- preset filter buttons (Today, Next 2 Hours, Action Needed) always reset to page 1
+- all active filters are preserved across page navigation
 
 Latest update (v17.5):
 

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Ecospace Workspace Booking
  * Description: Coworking booking system with hourly, daily, weekly and monthly plans with calendar picker.
- * Version: 17.5
+ * Version: 17.6
  * Author: Ecospace
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ECO_BOOKING_VERSION', '17.5');
+define('ECO_BOOKING_VERSION', '17.6');
 define('ECO_BOOKING_PATH', plugin_dir_path(__FILE__));
 define('ECO_BOOKING_URL', plugin_dir_url(__FILE__));
 
