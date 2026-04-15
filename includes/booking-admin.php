@@ -895,7 +895,7 @@ function eco_build_workspace_bookings_url($params = array())
 
 function eco_build_workspace_bookings_url_for_base($base_url, $params = array())
 {
-    $request_keys = array('filter_date', 'filter_plan', 'filter_order_status', 'filter_payment', 'filter_ops_status', 's', 'preset', 'paged');
+    $request_keys = array('filter_date', 'filter_plan', 'filter_order_status', 'filter_payment', 'filter_ops_status', 's', 'preset', 'eco_paged');
     $base_params = array();
 
     foreach ($request_keys as $key) {
@@ -1206,7 +1206,7 @@ function eco_render_bookings_pagination_nav($current_page, $total_pages, $base_u
     echo '<nav class="eco-bookings-pagination" aria-label="' . esc_attr__('Booking pages', 'ecospace-booking') . '">';
 
     if ($current_page > 1) {
-        echo '<a class="eco-page-link" href="' . esc_url(eco_build_workspace_bookings_url_for_base($base_url, array('paged' => $current_page - 1))) . '">&laquo; ' . esc_html__('Prev', 'ecospace-booking') . '</a>';
+        echo '<a class="eco-page-link" href="' . esc_url(eco_build_workspace_bookings_url_for_base($base_url, array('eco_paged' => $current_page - 1))) . '">&laquo; ' . esc_html__('Prev', 'ecospace-booking') . '</a>';
     } else {
         echo '<span class="eco-page-disabled">&laquo; ' . esc_html__('Prev', 'ecospace-booking') . '</span>';
     }
@@ -1217,12 +1217,12 @@ function eco_render_bookings_pagination_nav($current_page, $total_pages, $base_u
         } elseif ((int) $p === $current_page) {
             echo '<span class="eco-page-current">' . esc_html((string) $p) . '</span>';
         } else {
-            echo '<a class="eco-page-link" href="' . esc_url(eco_build_workspace_bookings_url_for_base($base_url, array('paged' => (int) $p))) . '">' . esc_html((string) $p) . '</a>';
+            echo '<a class="eco-page-link" href="' . esc_url(eco_build_workspace_bookings_url_for_base($base_url, array('eco_paged' => (int) $p))) . '">' . esc_html((string) $p) . '</a>';
         }
     }
 
     if ($current_page < $total_pages) {
-        echo '<a class="eco-page-link" href="' . esc_url(eco_build_workspace_bookings_url_for_base($base_url, array('paged' => $current_page + 1))) . '">' . esc_html__('Next', 'ecospace-booking') . ' &raquo;</a>';
+        echo '<a class="eco-page-link" href="' . esc_url(eco_build_workspace_bookings_url_for_base($base_url, array('eco_paged' => $current_page + 1))) . '">' . esc_html__('Next', 'ecospace-booking') . ' &raquo;</a>';
     } else {
         echo '<span class="eco-page-disabled">' . esc_html__('Next', 'ecospace-booking') . ' &raquo;</span>';
     }
@@ -1268,7 +1268,7 @@ function eco_render_workspace_bookings_interface($args = array())
     $per_page     = 25;
     $total_rows   = count($rows);
     $total_pages  = max(1, (int) ceil($total_rows / $per_page));
-    $current_page = isset($_GET['paged']) ? max(1, min($total_pages, absint(wp_unslash($_GET['paged'])))) : 1;
+    $current_page = isset($_GET['eco_paged']) ? max(1, min($total_pages, absint(wp_unslash($_GET['eco_paged'])))) : 1;
     $paged_offset = ($current_page - 1) * $per_page;
     $paged_rows   = array_slice($rows, $paged_offset, $per_page);
     $ops_labels = eco_get_ops_status_labels();
@@ -1290,9 +1290,9 @@ function eco_render_workspace_bookings_interface($args = array())
     }
 
     echo '<div class="eco-bookings-toolbar">';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'today', 'paged' => 1))) . '">' . esc_html__('Today', 'ecospace-booking') . '</a>';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'next_2_hours', 'paged' => 1))) . '">' . esc_html__('Next 2 Hours', 'ecospace-booking') . '</a>';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'action_needed', 'paged' => 1))) . '">' . esc_html__('Action Needed', 'ecospace-booking') . '</a>';
+    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'today', 'eco_paged' => 1))) . '">' . esc_html__('Today', 'ecospace-booking') . '</a>';
+    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'next_2_hours', 'eco_paged' => 1))) . '">' . esc_html__('Next 2 Hours', 'ecospace-booking') . '</a>';
+    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'action_needed', 'eco_paged' => 1))) . '">' . esc_html__('Action Needed', 'ecospace-booking') . '</a>';
     echo '</div>';
 
     echo '<form method="get" class="eco-bookings-filters">';
