@@ -921,6 +921,12 @@ function eco_validate_booking_payload($product_id)
         return array('ok' => false, 'message' => __('Please provide a valid start date.', 'ecospace-booking'));
     }
 
+    $today = new DateTime(current_time('Y-m-d'));
+    $today->setTime(0, 0, 0);
+    if ($start_date < $today) {
+        return array('ok' => false, 'message' => __('Bookings cannot be made for past dates.', 'ecospace-booking'));
+    }
+
     $hourly_rate = (float) get_post_meta($product_id, '_eco_hourly_rate', true);
     $hourly_plan = $config['plans']['hourly'] ?? array();
     $daily_plan = $config['plans']['daily'] ?? array();
@@ -955,6 +961,10 @@ function eco_validate_booking_payload($product_id)
             return array('ok' => false, 'message' => __('Start time must be within workspace opening hours.', 'ecospace-booking'));
         }
 
+        if ($start_date->format('Y-m-d') === $today->format('Y-m-d') && $start_time <= (int) current_time('G')) {
+            return array('ok' => false, 'message' => __('Please select a future start time for today\'s booking.', 'ecospace-booking'));
+        }
+
         if ($hours < $minimum_hours || $hours > ($config['close_hour'] - $config['open_hour'])) {
             return array('ok' => false, 'message' => sprintf(__('Please select at least %d hour(s) and stay within workspace opening hours.', 'ecospace-booking'), $minimum_hours));
         }
@@ -986,6 +996,10 @@ function eco_validate_booking_payload($product_id)
 
         if ($start_time < $daily_window_start || $start_time > ($daily_window_end - $daily_session_hours)) {
             return array('ok' => false, 'message' => __('Please select a valid daily time in.', 'ecospace-booking'));
+        }
+
+        if ($start_date->format('Y-m-d') === $today->format('Y-m-d') && $start_time <= (int) current_time('G')) {
+            return array('ok' => false, 'message' => __('Please select a future start time for today\'s booking.', 'ecospace-booking'));
         }
 
         $payload['start_time'] = $start_time;
@@ -1039,6 +1053,10 @@ function eco_validate_booking_payload($product_id)
         $start_time = (int) $preferred_start_times[$index];
         if ($start_time < $config['recurring_start_min_hour'] || $start_time > $config['recurring_start_max_hour']) {
             return array('ok' => false, 'message' => __('Time in must be within workspace opening hours.', 'ecospace-booking'));
+        }
+
+        if ($d->format('Y-m-d') === $today->format('Y-m-d') && $start_time <= (int) current_time('G')) {
+            return array('ok' => false, 'message' => __('Please select a future start time for today\'s office dates.', 'ecospace-booking'));
         }
 
         $end_time = (int) $preferred_end_times[$index];

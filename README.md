@@ -431,6 +431,13 @@ Latest update (v17.4):
 
 - changed the workspace bookings auto-refresh interval from 45 seconds to 10 minutes for both the admin dashboard page and the frontend shortcode page
 
+Latest update (v17.8):
+
+- bookings for past dates are now blocked server-side at cart add so no plan can submit a date that has already passed
+- past hours on today's date are now filtered out of the hourly and daily start-time dropdowns so only future slots appear
+- recurring office-date slots now disable already-elapsed start times in the Time In selector when today is selected as the office date
+- all three plan types (hourly, daily, recurring) enforce this at the server level as a second line of defence regardless of the client-side state
+
 ---
 
 # Maintainer

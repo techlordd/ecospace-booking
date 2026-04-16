@@ -267,6 +267,17 @@
       return recurringPlans[value] === true;
     }
 
+    function getTodayStr() {
+      var d = new Date();
+      var mm = String(d.getMonth() + 1).padStart(2, "0");
+      var dd = String(d.getDate()).padStart(2, "0");
+      return d.getFullYear() + "-" + mm + "-" + dd;
+    }
+
+    function getCurrentHour() {
+      return new Date().getHours();
+    }
+
     function setPreferredError(message) {
       if (!preferredError) {
         return;
@@ -503,6 +514,10 @@
       startTime.appendChild(createSelectPlaceholder("Select"));
 
       for (var hour = openHour; hour <= closeHour - 1; hour += 1) {
+        if (selectedDate === getTodayStr() && hour <= getCurrentHour()) {
+          continue;
+        }
+
         var hasAvailableRange = false;
 
         if (!selectedDate) {
@@ -542,6 +557,9 @@
       startTime.appendChild(createSelectPlaceholder("Select"));
 
       for (var hour = windowStart; hour <= latestStart; hour += 1) {
+        if (selectedDate === getTodayStr() && hour <= getCurrentHour()) {
+          continue;
+        }
         if (!selectedDate || !doesRangeOverlap(selectedDate, hour, hour + sessionHours)) {
           startTime.appendChild(createHourOption(hour));
         }
@@ -630,6 +648,15 @@
         }
 
         var selectedEndHour = selectedStartHour + selectedHours;
+        if (startDate.value === getTodayStr() && selectedStartHour <= getCurrentHour()) {
+          var pastHourMessage = "Please select a future start time for today's booking.";
+          setHourlyConflictState(pastHourMessage);
+          if (shouldShowBrowserMessage && typeof hours.reportValidity === "function") {
+            hours.reportValidity();
+          }
+          return false;
+        }
+
         if (doesRangeOverlap(startDate.value, selectedStartHour, selectedEndHour)) {
           var hourlyMessage = data.bookedTimeRangeMessage || "This time range is already booked.";
           setHourlyConflictState(hourlyMessage);
@@ -671,6 +698,13 @@
         }
 
         setStartTimeValidity("");
+
+        if (startDate.value === getTodayStr() && dailyStartHour <= getCurrentHour()) {
+          if (shouldShowBrowserMessage) {
+            alert("Please select a future start time for today's booking.");
+          }
+          return false;
+        }
 
         if (doesRangeOverlap(startDate.value, dailyStartHour, dailyStartHour + dailySessionHours)) {
           if (shouldShowBrowserMessage) {
@@ -743,6 +777,24 @@
       }
 
       return set;
+    }
+
+    function filterRecurringStartOptionsForDate(select, dateValue) {
+      var todayStr = getTodayStr();
+      var currentHour = getCurrentHour();
+      var options = select.querySelectorAll("option[value]");
+      for (var i = 0; i < options.length; i += 1) {
+        var optVal = Number(options[i].value);
+        if (dateValue === todayStr && optVal <= currentHour) {
+          options[i].disabled = true;
+        } else {
+          options[i].disabled = false;
+        }
+      }
+      // If the currently selected value is now disabled, reset to placeholder
+      if (select.value && select.options[select.selectedIndex] && select.options[select.selectedIndex].disabled) {
+        select.value = "";
+      }
     }
 
     function populateRecurringEndOptions(row, keepExistingSelection) {
@@ -832,6 +884,16 @@
         }
 
         if (!rowDate || !rowStart || !rowEnd || !rowDate.value || !rowStart.value || !rowEnd.value) {
+          continue;
+        }
+
+        if (rowDate.value === getTodayStr() && Number(rowStart.value) <= getCurrentHour()) {
+          row.classList.add("eco-recurring-slot-error");
+          setRecurringSlotCollapsed(row, false);
+          hasError = true;
+          if (!message) {
+            message = "Please select a future start time for today's office dates.";
+          }
           continue;
         }
 
@@ -1025,6 +1087,7 @@
       row.appendChild(rowBody);
 
       function onSlotChange() {
+        filterRecurringStartOptionsForDate(timeStartSelect, dateInput.value);
         refreshAvailability(false);
         syncRecurringDateAvailability();
         populateRecurringEndOptions(row, true);
@@ -1057,6 +1120,7 @@
         picker: datePicker,
       });
 
+      filterRecurringStartOptionsForDate(timeStartSelect, dateInput.value);
       syncRecurringDateAvailability();
 
       preferredDays.appendChild(row);
