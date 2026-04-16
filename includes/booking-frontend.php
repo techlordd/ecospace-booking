@@ -275,7 +275,20 @@ function eco_apply_booking_price_to_cart($cart)
 
     foreach ($cart->get_cart() as $cart_item) {
         if (!empty($cart_item['eco_booking']) && isset($cart_item['eco_booking']['price'])) {
-            $cart_item['data']->set_price((float) $cart_item['eco_booking']['price']);
+            $booking_price = (float) $cart_item['eco_booking']['price'];
+            $base_price    = isset($cart_item['eco_booking']['base_price']) ? (float) $cart_item['eco_booking']['base_price'] : 0.0;
+
+            $cart_item['data']->set_price($booking_price);
+
+            if ($base_price > 0 && $booking_price < $base_price) {
+                // Discount active: show crossed-out base price + discounted sale price
+                $cart_item['data']->set_regular_price($base_price);
+                $cart_item['data']->set_sale_price($booking_price);
+            } else {
+                // No discount: clear sale price so WC shows a plain price
+                $cart_item['data']->set_regular_price($booking_price);
+                $cart_item['data']->set_sale_price('');
+            }
         }
     }
 }

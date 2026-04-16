@@ -852,6 +852,20 @@ function eco_plan_price($plan, $hourly_rate, $hours, $product_id = 0)
     return $base_price;
 }
 
+function eco_get_booking_base_price($plan, $hourly_rate, $hours, $product_id = 0)
+{
+    $plan_config = eco_get_booking_plan($product_id, $plan);
+    if (!$plan_config) {
+        return 0;
+    }
+
+    if (($plan_config['type'] ?? '') === 'hourly') {
+        return max(0, (float) $hourly_rate) * max(0, (int) $hours);
+    }
+
+    return max(0, (float) ($plan_config['price'] ?? 0));
+}
+
 function eco_expected_preferred_days($plan, $product_id = 0)
 {
     $plan_config = eco_get_booking_plan($product_id, $plan);
@@ -923,6 +937,7 @@ function eco_validate_booking_payload($product_id)
         'start_time' => '',
         'end_time' => '',
         'hours' => 0,
+        'base_price' => 0,
         'price' => 0,
         'hourly_rate' => $hourly_rate,
     );
@@ -952,6 +967,7 @@ function eco_validate_booking_payload($product_id)
         $payload['start_time'] = $start_time;
         $payload['end_time'] = $end_time;
         $payload['hours'] = $hours;
+        $payload['base_price'] = eco_get_booking_base_price($plan, $hourly_rate, $hours, $product_id);
         $payload['price'] = eco_plan_price($plan, $hourly_rate, $hours, $product_id);
 
         $conflict_result = eco_validate_paid_slot_conflicts($product_id, eco_booking_slots_from_payload($payload));
@@ -980,6 +996,7 @@ function eco_validate_booking_payload($product_id)
         }
 
         $payload['hours'] = $payload['end_time'] - $payload['start_time'];
+        $payload['base_price'] = eco_get_booking_base_price($plan, $hourly_rate, 0, $product_id);
         $payload['price'] = eco_plan_price($plan, $hourly_rate, 0, $product_id);
 
         $conflict_result = eco_validate_paid_slot_conflicts($product_id, eco_booking_slots_from_payload($payload));
@@ -1078,6 +1095,7 @@ function eco_validate_booking_payload($product_id)
     $payload['end_date'] = $end_date->format('Y-m-d');
     $payload['preferred_days'] = $parsed_preferred;
     $payload['preferred_slots'] = $parsed_slots;
+    $payload['base_price'] = eco_get_booking_base_price($plan, $hourly_rate, 0, $product_id);
     $payload['price'] = eco_plan_price($plan, $hourly_rate, 0, $product_id);
 
     $conflict_result = eco_validate_paid_slot_conflicts($product_id, $parsed_slots);

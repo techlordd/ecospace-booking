@@ -209,22 +209,44 @@
       showDiscountUI(base, discounted, planKey);
     }
 
-    // Sync WooCommerce product price display when booking plan price changes
-    var wcBdi = document.querySelector('.price .woocommerce-Price-amount bdi')
-             || document.querySelector('.price .woocommerce-Price-amount');
-    var wcBdiOrigHtml = wcBdi ? wcBdi.innerHTML : null;
-    if (wcBdi && price) {
+    // Sync WooCommerce product price display when booking plan price changes.
+    // WC renders either a single <bdi> (no sale) or <del>…<ins>…</ins></del> (sale).
+    // We keep references so the MutationObserver can update them live.
+    var wcPriceWrap = document.querySelector('.price');
+    var wcBdiSale    = wcPriceWrap && (wcPriceWrap.querySelector('ins .woocommerce-Price-amount bdi') || wcPriceWrap.querySelector('ins .woocommerce-Price-amount'));
+    var wcBdiRegular = wcPriceWrap && (wcPriceWrap.querySelector('del .woocommerce-Price-amount bdi') || wcPriceWrap.querySelector('del .woocommerce-Price-amount'));
+    var wcBdiSingle  = wcPriceWrap && (!wcBdiSale) && (wcPriceWrap.querySelector('.woocommerce-Price-amount bdi') || wcPriceWrap.querySelector('.woocommerce-Price-amount'));
+    var wcBdiOrigHtml = wcBdiSingle ? wcBdiSingle.innerHTML : null;
+
+    function buildPriceHtml(sym, rawText) {
+      var amount = sym ? rawText.slice(sym.length) : rawText;
+      return '<span class="woocommerce-Price-currencySymbol">' + sym + '</span>' + amount;
+    }
+
+    if ((wcBdiSale || wcBdiSingle) && price) {
       var wcPriceObserver = new MutationObserver(function () {
-        var text = (price.textContent || '').trim();
-        var sym = (window.ecoBookingData || {}).currencySymbol || '';
-        if (text && text !== '0' && text !== sym + '0') {
-          var amount = sym ? text.slice(sym.length) : text;
-          wcBdi.innerHTML = '<span class="woocommerce-Price-currencySymbol">' + sym + '</span>' + amount;
-        } else if (wcBdiOrigHtml !== null) {
-          wcBdi.innerHTML = wcBdiOrigHtml;
+        var sym        = (window.ecoBookingData || {}).currencySymbol || '';
+        var saleText   = (price.textContent || '').trim();
+        var origText   = originalPrice ? (originalPrice.textContent || '').trim() : '';
+        var hasDiscount = origText && origText !== '' && origText !== sym + '0';
+
+        if (hasDiscount && wcBdiSale && wcBdiRegular) {
+          // WC already rendered a sale markup (<del>/<ins>): update both sides
+          wcBdiSale.innerHTML    = buildPriceHtml(sym, saleText);
+          wcBdiRegular.innerHTML = buildPriceHtml(sym, origText);
+        } else if (wcBdiSingle) {
+          // Single price element: just sync current (discounted or plain) price
+          if (saleText && saleText !== '0' && saleText !== sym + '0') {
+            wcBdiSingle.innerHTML = buildPriceHtml(sym, saleText);
+          } else if (wcBdiOrigHtml !== null) {
+            wcBdiSingle.innerHTML = wcBdiOrigHtml;
+          }
         }
       });
       wcPriceObserver.observe(price, { childList: true, characterData: true, subtree: true });
+      if (originalPrice) {
+        wcPriceObserver.observe(originalPrice, { childList: true, characterData: true, subtree: true });
+      }
     }
 
     var startDatePicker = flatpickr(startDate, {
