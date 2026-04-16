@@ -564,6 +564,18 @@
       return false;
     }
 
+    function hasAvailableHourlyWindow(dateValue) {
+      var minimumHours = getHourlyMinimumHours();
+
+      for (var hour = openHour; hour <= closeHour - minimumHours; hour += 1) {
+        if (!doesRangeOverlap(dateValue, hour, hour + minimumHours)) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
     function setHourlyConflictState(message) {
       if (!hours) {
         return;
@@ -1163,6 +1175,9 @@
         var dateKey = year + "-" + month + "-" + day;
 
         if (!useAdvancedConfig) {
+          if (plan.value === "hourly") {
+            return !hasAvailableHourlyWindow(dateKey);
+          }
           return getBookedRangesForDate(dateKey).length > 0;
         }
 
@@ -1171,7 +1186,7 @@
         }
 
         if (plan.value === "hourly") {
-          return false;
+          return !hasAvailableHourlyWindow(dateKey);
         }
 
         if (isRecurringPlan(plan.value)) {
