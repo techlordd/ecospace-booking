@@ -309,7 +309,7 @@ function eco_render_booking_item_data($item_data, $cart_item)
 
     $item_data[] = array(
         'key' => __('Office Date', 'ecospace-booking'),
-        'value' => $booking['start_date'],
+        'value' => eco_format_display_date($booking['start_date']),
     );
 
     if (!empty($booking['start_time']) && !empty($booking['end_time'])) {
@@ -337,7 +337,7 @@ function eco_render_booking_item_data($item_data, $cart_item)
     } elseif (!empty($booking['preferred_days'])) {
         $item_data[] = array(
             'key' => __('Office Dates', 'ecospace-booking'),
-            'value' => implode(', ', $booking['preferred_days']),
+            'value' => implode(', ', array_map('eco_format_display_date', $booking['preferred_days'])),
         );
     }
 
@@ -354,7 +354,7 @@ function eco_add_booking_meta_to_order_item($item, $cart_item_key, $values)
     $booking = $values['eco_booking'];
 
     $item->add_meta_data(__('Booking Plan', 'ecospace-booking'), eco_plan_label($booking['plan'], (int) $item->get_product_id()), true);
-    $item->add_meta_data(__('Office Date', 'ecospace-booking'), $booking['start_date'], true);
+    $item->add_meta_data(__('Office Date', 'ecospace-booking'), eco_format_display_date($booking['start_date']), true);
 
     if (!empty($booking['start_time']) && !empty($booking['end_time'])) {
         $item->add_meta_data(__('Time In', 'ecospace-booking'), eco_hour_label($booking['start_time']), true);
@@ -374,7 +374,7 @@ function eco_add_booking_meta_to_order_item($item, $cart_item_key, $values)
             $item->add_meta_data(__('Office Days', 'ecospace-booking'), implode(', ', $slot_lines), true);
         }
     } elseif (!empty($booking['preferred_days'])) {
-        $item->add_meta_data(__('Office Dates', 'ecospace-booking'), implode(', ', $booking['preferred_days']), true);
+        $item->add_meta_data(__('Office Dates', 'ecospace-booking'), implode(', ', array_map('eco_format_display_date', $booking['preferred_days'])), true);
     }
 
     $item->add_meta_data('_eco_booking_payload', wp_json_encode($booking), true);

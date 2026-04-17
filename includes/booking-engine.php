@@ -460,7 +460,7 @@ function eco_validate_paid_slot_conflicts($product_id, $slots)
                 'ok' => false,
                 'message' => sprintf(
                     __('%1$s (%2$s - %3$s) conflicts with an existing booking (%4$s - %5$s). Please choose a different time slot.', 'ecospace-booking'),
-                    $slot['date'],
+                    eco_format_display_date($slot['date']),
                     eco_hour_label($slot['start_time']),
                     eco_hour_label($slot['end_time']),
                     eco_hour_label($conflicting_slot['start_time']),
@@ -1136,6 +1136,25 @@ function eco_hour_label($hour)
     return sprintf('%d:00 %s', $normalized, $suffix);
 }
 
+/**
+ * Format a Y-m-d date string for customer-facing display (e.g. "April 17, 2026").
+ * Internal storage and comparisons continue to use Y-m-d unchanged.
+ *
+ * @param string $ymd Date in Y-m-d format.
+ * @return string Formatted date, or the original value if parsing fails.
+ */
+function eco_format_display_date($ymd)
+{
+    if (empty($ymd)) {
+        return $ymd;
+    }
+    $dt = DateTime::createFromFormat('Y-m-d', $ymd);
+    if (!($dt instanceof DateTime)) {
+        return $ymd;
+    }
+    return date_i18n('F j, Y', $dt->getTimestamp());
+}
+
 function eco_plan_label($plan, $product_id = 0)
 {
     $plan_config = eco_get_booking_plan($product_id, $plan);
@@ -1155,7 +1174,7 @@ function eco_format_preferred_slot($slot)
 
     return sprintf(
         '%s (%s - %s)',
-        $slot['date'],
+        eco_format_display_date($slot['date']),
         eco_hour_label((int) $slot['start_time']),
         eco_hour_label((int) $slot['end_time'])
     );
