@@ -1106,10 +1106,26 @@
         setRecurringSlotCollapsed(row, !row.classList.contains("eco-recurring-slot-collapsed"));
       });
 
+      var slotMinDate = getTodayStr();
+      if (start) {
+        var smm = String(start.getMonth() + 1).padStart(2, "0");
+        var sdd = String(start.getDate()).padStart(2, "0");
+        var startStr = start.getFullYear() + "-" + smm + "-" + sdd;
+        if (startStr > slotMinDate) {
+          slotMinDate = startStr;
+        }
+      }
+      var slotMaxDate = null;
+      if (end) {
+        var emm = String(end.getMonth() + 1).padStart(2, "0");
+        var edd = String(end.getDate()).padStart(2, "0");
+        slotMaxDate = end.getFullYear() + "-" + emm + "-" + edd;
+      }
+
       var datePicker = flatpickr(dateInput, {
         dateFormat: "Y-m-d",
-        minDate: start || "today",
-        maxDate: end || null,
+        minDate: slotMinDate,
+        maxDate: slotMaxDate,
         onChange: function () {
           onSlotChange();
         },

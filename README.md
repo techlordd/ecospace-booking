@@ -438,6 +438,10 @@ Latest update (v17.8):
 - recurring office-date slots now disable already-elapsed start times in the Time In selector when today is selected as the office date
 - all three plan types (hourly, daily, recurring) enforce this at the server level as a second line of defence regardless of the client-side state
 
+Latest update (v17.9):
+
+- fixed recurring office-date calendar showing past dates as selectable by replacing Date-object minDate with explicit YYYY-MM-DD strings in Flatpickr, with today as a guaranteed floor
+
 ---
 
 # Maintainer
