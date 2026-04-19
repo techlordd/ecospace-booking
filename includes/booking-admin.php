@@ -799,6 +799,7 @@ function eco_build_workspace_booking_rows($filters)
                     'item_id' => (int) $item->get_id(),
                     'customer_name' => $customer_name,
                     'customer_email' => sanitize_email((string) $order->get_billing_email()),
+                    'customer_phone' => sanitize_text_field((string) $order->get_billing_phone()),
                     'product_id' => $product_id,
                     'product_name' => $product_name,
                     'plan' => sanitize_text_field((string) ($booking['plan'] ?? '')),
@@ -1236,6 +1237,69 @@ function eco_render_workspace_bookings_styles($context = 'admin')
             min-width: 0;
         }
     }
+
+    /* Customer detail modal */
+    .eco-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 100000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .eco-modal-box {
+        background: #fff;
+        border-radius: 12px;
+        padding: 28px 32px;
+        max-width: 480px;
+        width: 94%;
+        position: relative;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+    }
+    .eco-modal-box h3 {
+        margin: 0 0 20px;
+        font-size: 18px;
+        color: #101828;
+    }
+    .eco-modal-close {
+        position: absolute;
+        top: 14px;
+        right: 16px;
+        background: none;
+        border: none;
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 4px 8px;
+    }
+    .eco-modal-close:hover { color: #101828; }
+    .eco-modal-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        font-size: 13px;
+    }
+    .eco-modal-table th,
+    .eco-modal-table td {
+        padding: 7px 10px;
+        border-bottom: 1px solid #f3f4f6;
+        text-align: left;
+        vertical-align: top;
+    }
+    .eco-modal-table th {
+        width: 36%;
+        color: #6b7280;
+        font-weight: 600;
+    }
+    .eco-modal-table td { color: #101828; word-break: break-word; }
+    .eco-modal-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .eco-view-customer { margin-bottom: 8px; display: block; }
     </style>';
 }
 
@@ -1474,6 +1538,17 @@ function eco_render_workspace_bookings_interface($args = array())
             echo '<td>' . esc_html(ucfirst($row['order_status'])) . '<br><span class="eco-status-badge ' . ($row['is_paid'] ? 'eco-badge-paid' : 'eco-badge-unpaid') . '">' . esc_html($row['is_paid'] ? __('Paid', 'ecospace-booking') : __('Unpaid', 'ecospace-booking')) . '</span></td>';
             echo '<td><span class="eco-status-badge eco-badge-ops-' . esc_attr($ops_slug) . '">' . esc_html($ops_labels[$row['ops_status']] ?? ucfirst($row['ops_status'])) . '</span></td>';
             echo '<td>';
+            echo '<button type="button" class="button button-secondary eco-view-customer"'
+                . ' data-name="'   . esc_attr($row['customer_name'])         . '"'
+                . ' data-email="'  . esc_attr($row['customer_email'])        . '"'
+                . ' data-phone="'  . esc_attr($row['customer_phone'])        . '"'
+                . ' data-order="'  . esc_attr((string) $row['order_id'])     . '"'
+                . ' data-status="' . esc_attr(ucfirst($row['order_status'])) . '"'
+                . ' data-plan="'   . esc_attr($row['plan'])                  . '"'
+                . ' data-date="'   . esc_attr($row['session_date'])          . '"'
+                . ' data-time="'   . esc_attr($row['session_label'])         . '"'
+                . ' data-seat="'   . esc_attr($row['assigned_seat_label'])   . '"'
+                . '>' . esc_html__('View Customer', 'ecospace-booking') . '</button>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="eco-bookings-inline-form">';
             wp_nonce_field('eco_booking_ops_' . (int) $row['order_id'] . '_' . (int) $row['item_id']);
             echo '<input type="hidden" name="action" value="eco_update_booking_ops">';
@@ -1559,8 +1634,74 @@ function eco_render_workspace_bookings_interface($args = array())
 
         window.location.reload();
     }, 600000);
+
+      // Customer detail modal
+      var ecoModal      = document.getElementById("eco_customer_modal");
+      var ecoModalClose = document.getElementById("eco_modal_close");
+      var ecoOrderBase  = ' . wp_json_encode(admin_url('post.php')) . ';
+
+      document.querySelectorAll(".eco-view-customer").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var d = btn.dataset;
+          document.getElementById("eco_modal_name").textContent   = d.name   || "\u2014";
+          document.getElementById("eco_modal_email").textContent  = d.email  || "\u2014";
+          document.getElementById("eco_modal_phone").textContent  = d.phone  || "\u2014";
+          document.getElementById("eco_modal_order").textContent  = d.order  ? "#" + d.order : "\u2014";
+          document.getElementById("eco_modal_status").textContent = d.status || "\u2014";
+          document.getElementById("eco_modal_plan").textContent   = d.plan   || "\u2014";
+          document.getElementById("eco_modal_date").textContent   = d.date   || "\u2014";
+          document.getElementById("eco_modal_time").textContent   = d.time   || "\u2014";
+          document.getElementById("eco_modal_seat").textContent   = d.seat   || "\u2014";
+          document.getElementById("eco_modal_email_link").href = d.email ? "mailto:" + d.email : "#";
+          document.getElementById("eco_modal_order_link").href = d.order
+            ? ecoOrderBase + "?post=" + encodeURIComponent(d.order) + "&action=edit"
+            : "#";
+          ecoModal.style.display = "flex";
+          ecoModal.setAttribute("aria-hidden", "false");
+        });
+      });
+
+      function ecoCloseModal() {
+        if (ecoModal) {
+          ecoModal.style.display = "none";
+          ecoModal.setAttribute("aria-hidden", "true");
+        }
+      }
+
+      if (ecoModalClose) { ecoModalClose.addEventListener("click", ecoCloseModal); }
+      if (ecoModal) {
+        ecoModal.addEventListener("click", function (e) {
+          if (e.target === ecoModal) { ecoCloseModal(); }
+        });
+      }
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && ecoModal && ecoModal.style.display !== "none") { ecoCloseModal(); }
+      });
     })();
     </script>';
+
+    echo '<div id="eco_customer_modal" class="eco-modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="eco_modal_title" aria-hidden="true">';
+    echo '<div class="eco-modal-box">';
+    echo '<button type="button" class="eco-modal-close" id="eco_modal_close" aria-label="' . esc_attr__('Close', 'ecospace-booking') . '">&times;</button>';
+    echo '<h3 id="eco_modal_title">' . esc_html__('Customer Details', 'ecospace-booking') . '</h3>';
+    echo '<table class="eco-modal-table">';
+    echo '<tr><th>' . esc_html__('Name', 'ecospace-booking')         . '</th><td id="eco_modal_name"></td></tr>';
+    echo '<tr><th>' . esc_html__('Email', 'ecospace-booking')        . '</th><td id="eco_modal_email"></td></tr>';
+    echo '<tr><th>' . esc_html__('Phone', 'ecospace-booking')        . '</th><td id="eco_modal_phone"></td></tr>';
+    echo '<tr><th>' . esc_html__('Order', 'ecospace-booking')        . '</th><td id="eco_modal_order"></td></tr>';
+    echo '<tr><th>' . esc_html__('Order Status', 'ecospace-booking') . '</th><td id="eco_modal_status"></td></tr>';
+    echo '<tr><th>' . esc_html__('Plan', 'ecospace-booking')         . '</th><td id="eco_modal_plan"></td></tr>';
+    echo '<tr><th>' . esc_html__('Date', 'ecospace-booking')         . '</th><td id="eco_modal_date"></td></tr>';
+    echo '<tr><th>' . esc_html__('Time', 'ecospace-booking')         . '</th><td id="eco_modal_time"></td></tr>';
+    echo '<tr><th>' . esc_html__('Seat', 'ecospace-booking')         . '</th><td id="eco_modal_seat"></td></tr>';
+    echo '</table>';
+    echo '<div class="eco-modal-actions">';
+    echo '<a id="eco_modal_email_link" href="#" class="button button-primary">'    . esc_html__('Send Email', 'ecospace-booking')  . '</a>';
+    echo '<a id="eco_modal_order_link" href="#" class="button button-secondary">' . esc_html__('View Order', 'ecospace-booking')   . '</a>';
+    echo '</div>';
+    echo '</div>';
+    echo '</div>';
+
     echo '</div>';
 }
 
