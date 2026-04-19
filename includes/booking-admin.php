@@ -1122,7 +1122,7 @@ function eco_render_workspace_bookings_styles($context = 'admin')
         padding: 20px;
         border: 1px solid #e4e7ec;
         border-radius: 12px;
-        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        background: #F0F0F1;
     }
 
     .eco-workspace-bookings-shortcode h2 {
