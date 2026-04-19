@@ -1361,7 +1361,16 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'action_needed', 'eco_paged' => 1))) . '">' . esc_html__('Action Needed', 'ecospace-booking') . '</a>';
     echo '</div>';
 
-    echo '<form method="get" class="eco-bookings-filters">';
+    $eco_form_parsed = parse_url($args['base_url']);
+    $eco_form_action = ($eco_form_parsed['scheme'] ?? 'https') . '://' . ($eco_form_parsed['host'] ?? '') . ($eco_form_parsed['path'] ?? '/');
+    $eco_form_base_params = array();
+    if (!empty($eco_form_parsed['query'])) {
+        parse_str($eco_form_parsed['query'], $eco_form_base_params);
+    }
+    echo '<form method="get" action="' . esc_url($eco_form_action) . '" class="eco-bookings-filters">';
+    foreach ($eco_form_base_params as $eco_param_key => $eco_param_val) {
+        echo '<input type="hidden" name="' . esc_attr($eco_param_key) . '" value="' . esc_attr($eco_param_val) . '">';
+    }
     echo '<p><label for="eco_filter_date">' . esc_html__('Date', 'ecospace-booking') . '</label><input type="date" id="eco_filter_date" name="filter_date" value="' . esc_attr($filters['date']) . '"></p>';
     echo '<p><label for="eco_filter_plan">' . esc_html__('Plan', 'ecospace-booking') . '</label>';
     echo '<select id="eco_filter_plan" name="filter_plan">';
