@@ -1577,6 +1577,28 @@ function eco_render_workspace_bookings_interface($args = array())
 
     eco_render_bookings_pagination_nav($current_page, $total_pages, $args['base_url']);
 
+    echo '<div id="eco_customer_modal" class="eco-modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="eco_modal_title" aria-hidden="true">';
+    echo '<div class="eco-modal-box">';
+    echo '<button type="button" class="eco-modal-close" id="eco_modal_close" aria-label="' . esc_attr__('Close', 'ecospace-booking') . '">&times;</button>';
+    echo '<h3 id="eco_modal_title">' . esc_html__('Customer Details', 'ecospace-booking') . '</h3>';
+    echo '<table class="eco-modal-table">';
+    echo '<tr><th>' . esc_html__('Name', 'ecospace-booking')         . '</th><td id="eco_modal_name"></td></tr>';
+    echo '<tr><th>' . esc_html__('Email', 'ecospace-booking')        . '</th><td id="eco_modal_email"></td></tr>';
+    echo '<tr><th>' . esc_html__('Phone', 'ecospace-booking')        . '</th><td id="eco_modal_phone"></td></tr>';
+    echo '<tr><th>' . esc_html__('Order', 'ecospace-booking')        . '</th><td id="eco_modal_order"></td></tr>';
+    echo '<tr><th>' . esc_html__('Order Status', 'ecospace-booking') . '</th><td id="eco_modal_status"></td></tr>';
+    echo '<tr><th>' . esc_html__('Plan', 'ecospace-booking')         . '</th><td id="eco_modal_plan"></td></tr>';
+    echo '<tr><th>' . esc_html__('Date', 'ecospace-booking')         . '</th><td id="eco_modal_date"></td></tr>';
+    echo '<tr><th>' . esc_html__('Time', 'ecospace-booking')         . '</th><td id="eco_modal_time"></td></tr>';
+    echo '<tr><th>' . esc_html__('Seat', 'ecospace-booking')         . '</th><td id="eco_modal_seat"></td></tr>';
+    echo '</table>';
+    echo '<div class="eco-modal-actions">';
+    echo '<a id="eco_modal_email_link" href="#" class="button button-primary">'    . esc_html__('Send Email', 'ecospace-booking')  . '</a>';
+    echo '<a id="eco_modal_order_link" href="#" class="button button-secondary">' . esc_html__('View Order', 'ecospace-booking')   . '</a>';
+    echo '</div>';
+    echo '</div>';
+    echo '</div>';
+
     echo '<script>
     (function () {
       var paused = false;
@@ -1679,28 +1701,6 @@ function eco_render_workspace_bookings_interface($args = array())
       });
     })();
     </script>';
-
-    echo '<div id="eco_customer_modal" class="eco-modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="eco_modal_title" aria-hidden="true">';
-    echo '<div class="eco-modal-box">';
-    echo '<button type="button" class="eco-modal-close" id="eco_modal_close" aria-label="' . esc_attr__('Close', 'ecospace-booking') . '">&times;</button>';
-    echo '<h3 id="eco_modal_title">' . esc_html__('Customer Details', 'ecospace-booking') . '</h3>';
-    echo '<table class="eco-modal-table">';
-    echo '<tr><th>' . esc_html__('Name', 'ecospace-booking')         . '</th><td id="eco_modal_name"></td></tr>';
-    echo '<tr><th>' . esc_html__('Email', 'ecospace-booking')        . '</th><td id="eco_modal_email"></td></tr>';
-    echo '<tr><th>' . esc_html__('Phone', 'ecospace-booking')        . '</th><td id="eco_modal_phone"></td></tr>';
-    echo '<tr><th>' . esc_html__('Order', 'ecospace-booking')        . '</th><td id="eco_modal_order"></td></tr>';
-    echo '<tr><th>' . esc_html__('Order Status', 'ecospace-booking') . '</th><td id="eco_modal_status"></td></tr>';
-    echo '<tr><th>' . esc_html__('Plan', 'ecospace-booking')         . '</th><td id="eco_modal_plan"></td></tr>';
-    echo '<tr><th>' . esc_html__('Date', 'ecospace-booking')         . '</th><td id="eco_modal_date"></td></tr>';
-    echo '<tr><th>' . esc_html__('Time', 'ecospace-booking')         . '</th><td id="eco_modal_time"></td></tr>';
-    echo '<tr><th>' . esc_html__('Seat', 'ecospace-booking')         . '</th><td id="eco_modal_seat"></td></tr>';
-    echo '</table>';
-    echo '<div class="eco-modal-actions">';
-    echo '<a id="eco_modal_email_link" href="#" class="button button-primary">'    . esc_html__('Send Email', 'ecospace-booking')  . '</a>';
-    echo '<a id="eco_modal_order_link" href="#" class="button button-secondary">' . esc_html__('View Order', 'ecospace-booking')   . '</a>';
-    echo '</div>';
-    echo '</div>';
-    echo '</div>';
 
     echo '</div>';
 }
