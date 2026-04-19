@@ -1300,6 +1300,56 @@ function eco_render_workspace_bookings_styles($context = 'admin')
         flex-wrap: wrap;
     }
     .eco-view-customer { margin-bottom: 8px; display: block; }
+
+    /* Checked-in countdown timer */
+    .eco-timer-countdown {
+        display: block;
+        margin-top: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #b45309;
+        letter-spacing: 0.02em;
+    }
+    .eco-timer-expired {
+        display: block;
+        margin-top: 5px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #b91c1c;
+        letter-spacing: 0.02em;
+    }
+
+    /* Session-ended banner */
+    .eco-session-ended-banner {
+        position: fixed;
+        top: 32px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 200000;
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        border-radius: 8px;
+        padding: 12px 20px 12px 16px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+        min-width: 280px;
+        max-width: 480px;
+        font-size: 13px;
+        color: #78350f;
+    }
+    .eco-session-ended-banner strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .eco-session-ended-banner ul { margin: 4px 0 0 16px; padding: 0; }
+    .eco-session-ended-banner .eco-banner-dismiss {
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        color: #92400e;
+        line-height: 1;
+        padding: 0 4px;
+    }
     </style>';
 }
 
@@ -1529,14 +1579,21 @@ function eco_render_workspace_bookings_interface($args = array())
     } else {
         foreach ($paged_rows as $row) {
             $ops_slug = sanitize_html_class($row['ops_status']);
-            echo '<tr>';
+            echo '<tr'
+                . ' data-row-key="'  . esc_attr($row['order_id'] . ':' . $row['item_id'])    . '"'
+                . ' data-ops="'      . esc_attr($row['ops_status'])                           . '"'
+                . ' data-end-date="' . esc_attr($row['session_date'])                         . '"'
+                . ' data-end-hour="' . esc_attr((string) $row['session_end'])                 . '"'
+                . ' data-customer="' . esc_attr($row['customer_name'])                        . '"'
+                . ' data-seat="'     . esc_attr($row['assigned_seat_label'])                  . '"'
+                . '>';
             echo '<td><input type="checkbox" class="eco-row-select" value="' . esc_attr((string) $row['order_id'] . ':' . (string) $row['item_id']) . '"></td>';
             echo '<td><span class="eco-date-cell">' . esc_html($row['session_date']) . '</span><span class="eco-time-cell">' . esc_html($row['session_label']) . '</span></td>';
             echo '<td><strong>' . esc_html($row['customer_name']) . '</strong><br><small>' . esc_html($row['customer_email']) . '</small><br><a href="' . esc_url(admin_url('post.php?post=' . (int) $row['order_id'] . '&action=edit')) . '">#' . esc_html((string) $row['order_id']) . '</a></td>';
             echo '<td>' . esc_html($row['product_name']) . '</td>';
             echo '<td><span class="eco-status-badge eco-badge-plan">' . esc_html($row['plan']) . '</span></td>';
             echo '<td>' . esc_html(ucfirst($row['order_status'])) . '<br><span class="eco-status-badge ' . ($row['is_paid'] ? 'eco-badge-paid' : 'eco-badge-unpaid') . '">' . esc_html($row['is_paid'] ? __('Paid', 'ecospace-booking') : __('Unpaid', 'ecospace-booking')) . '</span></td>';
-            echo '<td><span class="eco-status-badge eco-badge-ops-' . esc_attr($ops_slug) . '">' . esc_html($ops_labels[$row['ops_status']] ?? ucfirst($row['ops_status'])) . '</span></td>';
+            echo '<td class="eco-ops-td"><span class="eco-status-badge eco-badge-ops-' . esc_attr($ops_slug) . '">' . esc_html($ops_labels[$row['ops_status']] ?? ucfirst($row['ops_status'])) . '</span></td>';
             echo '<td>';
             echo '<button type="button" class="button button-secondary eco-view-customer"'
                 . ' data-name="'   . esc_attr($row['customer_name'])         . '"'
@@ -1699,6 +1756,123 @@ function eco_render_workspace_bookings_interface($args = array())
       document.addEventListener("keydown", function (e) {
         if (e.key === "Escape" && ecoModal && ecoModal.style.display !== "none") { ecoCloseModal(); }
       });
+
+      // ── Checked-in countdown timer ─────────────────────────────────────────
+      var ecoTimerRows = Array.prototype.slice.call(
+        document.querySelectorAll("tr[data-ops=checked_in]")
+      );
+
+      if (ecoTimerRows.length > 0 && "Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+
+      function ecoFormatCountdown(ms) {
+        if (ms <= 0) { return null; }
+        var totalSec = Math.floor(ms / 1000);
+        var h = Math.floor(totalSec / 3600);
+        var m = Math.floor((totalSec % 3600) / 60);
+        var s = totalSec % 60;
+        if (h > 0) { return h + "h " + m + "m left"; }
+        if (m > 0) { return m + "m " + s + "s left"; }
+        return s + "s left";
+      }
+
+      function ecoGetOrCreateTimerEl(opsTd) {
+        var el = opsTd.querySelector(".eco-timer-countdown, .eco-timer-expired");
+        if (!el) {
+          el = document.createElement("span");
+          el.className = "eco-timer-countdown";
+          opsTd.appendChild(el);
+        }
+        return el;
+      }
+
+      function ecoShowBanner(entries) {
+        var banner = document.getElementById("eco_session_ended_banner");
+        if (!banner) {
+          banner = document.createElement("div");
+          banner.id = "eco_session_ended_banner";
+          banner.className = "eco-session-ended-banner";
+          var dismiss = document.createElement("button");
+          dismiss.className = "eco-banner-dismiss";
+          dismiss.type = "button";
+          dismiss.setAttribute("aria-label", "Dismiss");
+          dismiss.textContent = "\u00d7";
+          dismiss.addEventListener("click", function () { banner.remove(); });
+          banner.appendChild(dismiss);
+          var title = document.createElement("strong");
+          title.textContent = "Session ended";
+          banner.appendChild(title);
+          var list = document.createElement("ul");
+          list.id = "eco_banner_list";
+          banner.appendChild(list);
+          document.body.appendChild(banner);
+        }
+        var list = document.getElementById("eco_banner_list");
+        entries.forEach(function (text) {
+          var li = document.createElement("li");
+          li.textContent = text;
+          list.appendChild(li);
+        });
+      }
+
+      function ecoFireNotification(customer, seat) {
+        if ("Notification" in window && Notification.permission === "granted") {
+          try {
+            new Notification("Session Ended", {
+              body: customer + " \u2014 " + seat,
+              icon: ""
+            });
+          } catch (e) { /* silently ignore in contexts where Notification fails */ }
+        }
+      }
+
+      // Process rows already past end time on load (tab was closed during session)
+      ecoTimerRows.forEach(function (tr) {
+        var d = tr.dataset;
+        var endTs = new Date(d.endDate + "T" + (d.endHour.length < 2 ? "0" + d.endHour : d.endHour) + ":00:00").getTime();
+        if (endTs && Date.now() >= endTs) {
+          var key = "eco_timer_" + d.rowKey;
+          var opsTd = tr.querySelector(".eco-ops-td");
+          if (opsTd) {
+            var el = ecoGetOrCreateTimerEl(opsTd);
+            el.className = "eco-timer-expired";
+            el.textContent = "Session ended";
+          }
+          if (!localStorage.getItem(key)) {
+            localStorage.setItem(key, "notified");
+            ecoShowBanner([d.customer + " \u2014 " + d.seat]);
+          }
+        }
+      });
+
+      // Live countdown tick
+      setInterval(function () {
+        var expired = [];
+        ecoTimerRows.forEach(function (tr) {
+          var d = tr.dataset;
+          var endTs = new Date(d.endDate + "T" + (d.endHour.length < 2 ? "0" + d.endHour : d.endHour) + ":00:00").getTime();
+          if (!endTs) { return; }
+          var remaining = endTs - Date.now();
+          var opsTd = tr.querySelector(".eco-ops-td");
+          if (!opsTd) { return; }
+          var el = ecoGetOrCreateTimerEl(opsTd);
+          if (remaining > 0) {
+            el.className = "eco-timer-countdown";
+            el.textContent = ecoFormatCountdown(remaining);
+          } else {
+            var key = "eco_timer_" + d.rowKey;
+            el.className = "eco-timer-expired";
+            el.textContent = "Session ended";
+            if (!localStorage.getItem(key)) {
+              localStorage.setItem(key, "notified");
+              expired.push(d.customer + " \u2014 " + d.seat);
+              ecoFireNotification(d.customer, d.seat);
+            }
+          }
+        });
+        if (expired.length) { ecoShowBanner(expired); }
+      }, 1000);
     })();
     </script>';
 
