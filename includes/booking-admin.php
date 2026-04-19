@@ -1593,8 +1593,8 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<tr><th>' . esc_html__('Seat', 'ecospace-booking')         . '</th><td id="eco_modal_seat"></td></tr>';
     echo '</table>';
     echo '<div class="eco-modal-actions">';
-    echo '<a id="eco_modal_email_link" href="#" class="button button-primary">'    . esc_html__('Send Email', 'ecospace-booking')  . '</a>';
-    echo '<a id="eco_modal_order_link" href="#" class="button button-secondary">' . esc_html__('View Order', 'ecospace-booking')   . '</a>';
+    echo '<a id="eco_modal_email_link" href="#" class="button button-primary" target="_blank" rel="noopener noreferrer">'    . esc_html__('Send Email', 'ecospace-booking')  . '</a>';
+    echo '<a id="eco_modal_order_link" href="#" class="button button-secondary" target="_blank" rel="noopener noreferrer">' . esc_html__('View Order', 'ecospace-booking')   . '</a>';
     echo '</div>';
     echo '</div>';
     echo '</div>';
