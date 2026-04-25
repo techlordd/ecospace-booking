@@ -1350,6 +1350,41 @@ function eco_render_workspace_bookings_styles($context = 'admin')
         line-height: 1;
         padding: 0 4px;
     }
+
+    /* Stat cards */
+    .eco-workspace-bookings-shell .eco-stats-bar {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+    }
+    .eco-workspace-bookings-shell .eco-stat-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 24px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        min-width: 90px;
+    }
+    .eco-workspace-bookings-shell .eco-stat-count {
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+    .eco-workspace-bookings-shell .eco-stat-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-top: 2px;
+        white-space: nowrap;
+    }
+    .eco-workspace-bookings-shell .eco-stat-completed  { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+    .eco-workspace-bookings-shell .eco-stat-no_show    { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+    .eco-workspace-bookings-shell .eco-stat-draft      { background: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
+    .eco-workspace-bookings-shell .eco-stat-cancelled  { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
     </style>';
 }
 
@@ -1468,6 +1503,14 @@ function eco_render_workspace_bookings_interface($args = array())
         $notice_class = ($notice === 'success') ? 'notice-success' : 'notice-error';
         echo '<div class="notice ' . esc_attr($notice_class) . '"><p>' . esc_html($message) . '</p></div>';
     }
+
+    $eco_stat_counts = eco_get_booking_status_counts();
+    echo '<div class="eco-stats-bar">';
+    echo '<div class="eco-stat-card eco-stat-completed"><span class="eco-stat-count">' . esc_html($eco_stat_counts['completed']) . '</span><span class="eco-stat-label">' . esc_html__('Completed', 'ecospace-booking') . '</span></div>';
+    echo '<div class="eco-stat-card eco-stat-no_show"><span class="eco-stat-count">' . esc_html($eco_stat_counts['no_show']) . '</span><span class="eco-stat-label">' . esc_html__('No Show', 'ecospace-booking') . '</span></div>';
+    echo '<div class="eco-stat-card eco-stat-draft"><span class="eco-stat-count">' . esc_html($eco_stat_counts['draft']) . '</span><span class="eco-stat-label">' . esc_html__('Draft', 'ecospace-booking') . '</span></div>';
+    echo '<div class="eco-stat-card eco-stat-cancelled"><span class="eco-stat-count">' . esc_html($eco_stat_counts['cancelled']) . '</span><span class="eco-stat-label">' . esc_html__('Cancelled', 'ecospace-booking') . '</span></div>';
+    echo '</div>';
 
     echo '<div class="eco-bookings-toolbar">';
     echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'today', 'eco_paged' => 1))) . '">' . esc_html__('Today', 'ecospace-booking') . '</a>';
@@ -1882,6 +1925,43 @@ function eco_render_workspace_bookings_interface($args = array())
     </script>';
 
     echo '</div>';
+}
+
+function eco_get_booking_status_counts()
+{
+    $counts = array(
+        'completed' => 0,
+        'no_show'   => 0,
+        'cancelled' => 0,
+        'draft'     => 0,
+    );
+
+    $orders = wc_get_orders(array(
+        'limit'   => -1,
+        'orderby' => 'date',
+        'order'   => 'DESC',
+        'status'  => eco_get_all_wc_status_keys(),
+        'type'    => 'shop_order',
+    ));
+
+    foreach ($orders as $order) {
+        $is_draft = ($order->get_status() === 'checkout-draft');
+        foreach ($order->get_items() as $item) {
+            if (!is_array(eco_parse_booking_payload_from_item($item))) {
+                continue;
+            }
+            if ($is_draft) {
+                $counts['draft']++;
+                continue;
+            }
+            $ops_status = sanitize_key((string) $item->get_meta('_eco_checkin_status', true));
+            if (isset($counts[$ops_status])) {
+                $counts[$ops_status]++;
+            }
+        }
+    }
+
+    return $counts;
 }
 
 function eco_apply_workspace_bookings_preset($preset, $filters)
