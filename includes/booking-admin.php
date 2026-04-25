@@ -617,6 +617,14 @@ function eco_register_workspace_bookings_menu()
         'eco-workspace-bookings',
         'eco_render_workspace_bookings_page'
     );
+    add_submenu_page(
+        'woocommerce',
+        __('Seat Availability', 'ecospace-booking'),
+        __('Seat Availability', 'ecospace-booking'),
+        'manage_woocommerce',
+        'eco-seat-availability',
+        'eco_render_seat_availability_page'
+    );
 }
 
 add_action('admin_post_eco_update_booking_ops', 'eco_update_booking_ops_action');
@@ -2085,7 +2093,330 @@ function eco_render_workspace_bookings_page()
         wp_die(esc_html__('You are not allowed to view workspace bookings.', 'ecospace-booking'));
     }
 
-        echo '<div class="wrap">';
-        eco_render_workspace_bookings_interface();
+    echo '<div class="wrap">';
+    eco_render_workspace_bookings_interface();
+    echo '</div>';
+}
+
+// ─── Seat Availability Grid ───────────────────────────────────────────────────
+
+function eco_build_seat_availability_data($date, $open_hour, $close_hour)
+{
+    $seats = eco_get_booking_enabled_products_for_assignment();
+    if (empty($seats)) {
+        return array();
+    }
+
+    $rows = eco_build_workspace_booking_rows(array(
+        'date'         => $date,
+        'plan'         => '',
+        'order_status' => '',
+        'payment'      => 'all',
+        'ops_status'   => 'all',
+        'search'       => '',
+        'window_start' => 0,
+        'window_end'   => 0,
+    ));
+
+    // Index booking spans by assigned_product_id
+    $booked = array();
+    foreach ($rows as $row) {
+        $pid   = (int) $row['assigned_product_id'];
+        $start = (int) $row['session_start'];
+        $end   = (int) $row['session_end'];
+        if ($pid <= 0 || $start >= $end) {
+            continue;
+        }
+        $booked[$pid][] = array(
+            'start'         => $start,
+            'end'           => $end,
+            'customer_name' => sanitize_text_field((string) $row['customer_name']),
+            'ops_status'    => sanitize_key((string) $row['ops_status']),
+            'order_id'      => (int) $row['order_id'],
+        );
+    }
+
+    $grid = array();
+    foreach ($seats as $product_id => $product_name) {
+        $product_id = (int) $product_id;
+        $spans      = isset($booked[$product_id]) ? $booked[$product_id] : array();
+
+        // Sort spans by start hour
+        usort($spans, function ($a, $b) {
+            return $a['start'] <=> $b['start'];
+        });
+
+        // Build an hour-indexed lookup so the renderer can jump over consumed hours
+        $hour_map = array();
+        foreach ($spans as $span) {
+            for ($h = $span['start']; $h < $span['end'] && $h < $close_hour; $h++) {
+                $hour_map[$h] = $span;
+            }
+        }
+
+        $grid[$product_id] = array(
+            'label'    => sanitize_text_field((string) $product_name),
+            'hour_map' => $hour_map,
+            'spans'    => $spans,
+        );
+    }
+
+    return $grid;
+}
+
+function eco_render_seat_availability_styles()
+{
+    static $printed = false;
+    if ($printed) {
+        return;
+    }
+    $printed = true;
+
+    echo '<style>
+    .eco-seat-availability-wrap {
+        margin-top: 16px;
+    }
+    .eco-seat-date-form {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .eco-seat-date-form label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+    .eco-seat-date-form input[type="date"] {
+        min-height: 38px;
+        min-width: 180px;
+    }
+    .eco-seat-grid-wrap {
+        overflow-x: auto;
+        border: 1px solid #dcdcde;
+        border-radius: 8px;
+        background: #fff;
+    }
+    .eco-seat-grid {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    .eco-seat-grid th,
+    .eco-seat-grid td {
+        padding: 7px 10px;
+        border: 1px solid #e5e7eb;
+        white-space: nowrap;
+        vertical-align: middle;
+        text-align: center;
+    }
+    .eco-seat-grid thead th {
+        background: #f1f5f9;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #475467;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+    .eco-seat-grid .eco-seat-name-col {
+        text-align: left;
+        font-weight: 600;
+        font-size: 12px;
+        color: #101828;
+        background: #f8fafc;
+        min-width: 150px;
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        border-right: 2px solid #dcdcde;
+    }
+    .eco-seat-grid thead th.eco-seat-name-col {
+        z-index: 3;
+    }
+    .eco-seat-cell-available {
+        background: #f8fafc;
+        color: #cbd5e1;
+        font-size: 10px;
+    }
+    .eco-seat-cell-booked     { background: #dbeafe; color: #1d4ed8; font-weight: 600; border-radius: 4px; }
+    .eco-seat-cell-assigned   { background: #ede9fe; color: #6d28d9; font-weight: 600; }
+    .eco-seat-cell-checked_in { background: #fef3c7; color: #b45309; font-weight: 600; }
+    .eco-seat-cell-completed  { background: #dcfce7; color: #15803d; font-weight: 600; }
+    .eco-seat-cell-no_show    { background: #fee2e2; color: #b91c1c; font-weight: 600; }
+    .eco-seat-cell-cancelled  { background: #f3f4f6; color: #9ca3af; font-weight: 600; text-decoration: line-through; }
+    .eco-seat-booking-chip {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 160px;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+    .eco-seat-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 16px;
+        align-items: center;
+    }
+    .eco-seat-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #374151;
+    }
+    .eco-seat-legend-swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        flex-shrink: 0;
+    }
+    .eco-seat-no-seats {
+        padding: 24px;
+        color: #667085;
+        font-style: italic;
+    }
+    </style>';
+}
+
+function eco_render_seat_availability_interface()
+{
+    $config     = eco_get_default_booking_config();
+    $open_hour  = (int) $config['open_hour'];
+    $close_hour = (int) $config['close_hour'];
+
+    $date = isset($_GET['eco_grid_date'])
+        ? sanitize_text_field(wp_unslash($_GET['eco_grid_date']))
+        : current_time('Y-m-d');
+
+    // Validate date format; fall back to today if invalid
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !strtotime($date)) {
+        $date = current_time('Y-m-d');
+    }
+
+    $grid = eco_build_seat_availability_data($date, $open_hour, $close_hour);
+
+    eco_render_seat_availability_styles();
+
+    echo '<div class="eco-seat-availability-wrap">';
+    echo '<h1>' . esc_html__('Seat Availability', 'ecospace-booking') . '</h1>';
+    echo '<p>' . esc_html__('Airline-style seat grid for the selected date. Each cell shows who has booked that seat during that hour.', 'ecospace-booking') . '</p>';
+
+    // Date picker form
+    $page_url = admin_url('admin.php');
+    echo '<form method="get" action="' . esc_url($page_url) . '" class="eco-seat-date-form">';
+    echo '<input type="hidden" name="page" value="eco-seat-availability">';
+    echo '<p><label for="eco_grid_date">' . esc_html__('Date', 'ecospace-booking') . '</label>';
+    echo '<input type="date" id="eco_grid_date" name="eco_grid_date" value="' . esc_attr($date) . '"></p>';
+    echo '<p style="margin:0"><button class="button button-primary" type="submit">' . esc_html__('View', 'ecospace-booking') . '</button></p>';
+    echo '</form>';
+
+    if (empty($grid)) {
+        echo '<p class="eco-seat-no-seats">' . esc_html__('No booking-enabled seats found. Enable booking on at least one product to see the grid.', 'ecospace-booking') . '</p>';
         echo '</div>';
+        return;
+    }
+
+    // Build hour columns
+    $hours = range($open_hour, $close_hour - 1);
+
+    echo '<div class="eco-seat-grid-wrap">';
+    echo '<table class="eco-seat-grid">';
+
+    // Header row
+    echo '<thead><tr>';
+    echo '<th class="eco-seat-name-col">' . esc_html__('Seat', 'ecospace-booking') . '</th>';
+    foreach ($hours as $h) {
+        echo '<th>' . esc_html(eco_hour_label($h)) . '</th>';
+    }
+    echo '</tr></thead>';
+
+    // Seat rows
+    echo '<tbody>';
+    foreach ($grid as $product_id => $seat) {
+        $hour_map   = $seat['hour_map'];
+        $skip_until = -1;
+
+        echo '<tr>';
+        echo '<td class="eco-seat-name-col">' . esc_html($seat['label']) . '</td>';
+
+        foreach ($hours as $h) {
+            // Hour already covered by a colspan from a previous cell
+            if ($h < $skip_until) {
+                continue;
+            }
+
+            if (!isset($hour_map[$h])) {
+                // Free slot
+                echo '<td class="eco-seat-cell-available">·</td>';
+                continue;
+            }
+
+            $span       = $hour_map[$h];
+            $span_start = (int) $span['start'];
+            $span_end   = min((int) $span['end'], $close_hour);
+
+            // Only render the cell at the span's own start, not mid-span
+            if ($h !== $span_start) {
+                // This hour is mid-span but we haven't skipped it yet (edge case: span started before open_hour)
+                continue;
+            }
+
+            $colspan    = $span_end - $span_start;
+            $status_key = sanitize_key($span['ops_status']);
+            $css_class  = 'eco-seat-cell-' . $status_key;
+            $skip_until = $span_end;
+
+            $ops_labels = eco_get_ops_status_labels();
+            $status_label = isset($ops_labels[$status_key]) ? $ops_labels[$status_key] : $status_key;
+
+            echo '<td class="' . esc_attr($css_class) . '" colspan="' . esc_attr($colspan) . '" title="' . esc_attr($span['customer_name'] . ' — ' . $status_label) . '">';
+            echo '<span class="eco-seat-booking-chip">' . esc_html($span['customer_name']) . '</span>';
+            echo '<span class="eco-seat-booking-chip" style="opacity:0.75;font-size:10px">' . esc_html($status_label) . '</span>';
+            echo '</td>';
+        }
+
+        echo '</tr>';
+    }
+    echo '</tbody>';
+    echo '</table>';
+    echo '</div>';
+
+    // Legend
+    $legend_items = array(
+        'available'  => array('label' => __('Available', 'ecospace-booking'),  'color' => '#f1f5f9'),
+        'booked'     => array('label' => __('Booked', 'ecospace-booking'),     'color' => '#dbeafe'),
+        'assigned'   => array('label' => __('Assigned', 'ecospace-booking'),   'color' => '#ede9fe'),
+        'checked_in' => array('label' => __('Checked In', 'ecospace-booking'), 'color' => '#fef3c7'),
+        'completed'  => array('label' => __('Completed', 'ecospace-booking'),  'color' => '#dcfce7'),
+        'no_show'    => array('label' => __('No Show', 'ecospace-booking'),    'color' => '#fee2e2'),
+        'cancelled'  => array('label' => __('Cancelled', 'ecospace-booking'),  'color' => '#f3f4f6'),
+    );
+
+    echo '<div class="eco-seat-legend">';
+    foreach ($legend_items as $item) {
+        echo '<span class="eco-seat-legend-item">';
+        echo '<span class="eco-seat-legend-swatch" style="background:' . esc_attr($item['color']) . ';border:1px solid #e5e7eb"></span>';
+        echo esc_html($item['label']);
+        echo '</span>';
+    }
+    echo '</div>';
+
+    echo '</div>'; // .eco-seat-availability-wrap
+}
+
+function eco_render_seat_availability_page()
+{
+    if (!current_user_can('manage_woocommerce')) {
+        wp_die(esc_html__('You are not allowed to view seat availability.', 'ecospace-booking'));
+    }
+
+    echo '<div class="wrap">';
+    eco_render_seat_availability_interface();
+    echo '</div>';
 }
