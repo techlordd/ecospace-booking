@@ -1476,6 +1476,7 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'draft', 'eco_paged' => 1))) . '">' . esc_html__('Draft', 'ecospace-booking') . '</a>';
     echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'active_sessions', 'eco_paged' => 1))) . '">' . esc_html__('Active Sessions', 'ecospace-booking') . '</a>';
     echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'no_show', 'eco_paged' => 1))) . '">' . esc_html__('No Show', 'ecospace-booking') . '</a>';
+    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'booked', 'eco_paged' => 1))) . '">' . esc_html__('Booked', 'ecospace-booking') . '</a>';
     echo '</div>';
 
     $eco_form_parsed = parse_url($args['base_url']);
@@ -1910,6 +1911,8 @@ function eco_apply_workspace_bookings_preset($preset, $filters)
         $filters['window_end']   = 24;
     } elseif ($preset === 'no_show') {
         $filters['ops_status'] = 'no_show';
+    } elseif ($preset === 'booked') {
+        $filters['ops_status'] = 'booked';
     }
 
     return $filters;
