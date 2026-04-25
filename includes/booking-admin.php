@@ -1636,12 +1636,13 @@ function eco_render_workspace_bookings_interface($args = array())
         foreach ($paged_rows as $row) {
             $ops_slug = sanitize_html_class($row['ops_status']);
             echo '<tr'
-                . ' data-row-key="'  . esc_attr($row['order_id'] . ':' . $row['item_id'])    . '"'
-                . ' data-ops="'      . esc_attr($row['ops_status'])                           . '"'
-                . ' data-end-date="' . esc_attr($row['session_date'])                         . '"'
-                . ' data-end-hour="' . esc_attr((string) $row['session_end'])                 . '"'
-                . ' data-customer="' . esc_attr($row['customer_name'])                        . '"'
-                . ' data-seat="'     . esc_attr($row['assigned_seat_label'])                  . '"'
+                . ' data-row-key="'    . esc_attr($row['order_id'] . ':' . $row['item_id'])  . '"'
+                . ' data-ops="'        . esc_attr($row['ops_status'])                         . '"'
+                . ' data-end-date="'   . esc_attr($row['session_date'])                       . '"'
+                . ' data-start-hour="' . esc_attr((string) $row['session_start'])             . '"'
+                . ' data-end-hour="'   . esc_attr((string) $row['session_end'])               . '"'
+                . ' data-customer="'   . esc_attr($row['customer_name'])                      . '"'
+                . ' data-seat="'       . esc_attr($row['assigned_seat_label'])                . '"'
                 . '>';
             echo '<td><input type="checkbox" class="eco-row-select" value="' . esc_attr((string) $row['order_id'] . ':' . (string) $row['item_id']) . '"></td>';
             echo '<td><span class="eco-date-cell">' . esc_html($row['session_date']) . '</span><span class="eco-time-cell">' . esc_html($row['session_label']) . '</span></td>';
@@ -1902,14 +1903,20 @@ function eco_render_workspace_bookings_interface($args = array())
         }
       });
 
-      // Live countdown tick
+      // Live countdown tick — remaining is capped to the actual booked session window:
+      // if admin checks in before session start, countdown shows full booked duration,
+      // not time elapsed since check-in. Applies to all plan types.
       setInterval(function () {
         var expired = [];
         ecoTimerRows.forEach(function (tr) {
           var d = tr.dataset;
-          var endTs = new Date(d.endDate + "T" + (d.endHour.length < 2 ? "0" + d.endHour : d.endHour) + ":00:00").getTime();
+          var startHourPad = d.startHour && d.startHour.length < 2 ? "0" + d.startHour : (d.startHour || "00");
+          var endHourPad   = d.endHour   && d.endHour.length   < 2 ? "0" + d.endHour   : (d.endHour   || "00");
+          var startTs = new Date(d.endDate + "T" + startHourPad + ":00:00").getTime();
+          var endTs   = new Date(d.endDate + "T" + endHourPad   + ":00:00").getTime();
           if (!endTs) { return; }
-          var remaining = endTs - Date.now();
+          // Cap reference point to session_start so countdown never exceeds booked duration
+          var remaining = endTs - Math.max(Date.now(), startTs || Date.now());
           var opsTd = tr.querySelector(".eco-ops-td");
           if (!opsTd) { return; }
           var el = ecoGetOrCreateTimerEl(opsTd);
