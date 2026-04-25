@@ -1643,6 +1643,7 @@ function eco_render_workspace_bookings_interface($args = array())
                 . ' data-end-hour="'   . esc_attr((string) $row['session_end'])               . '"'
                 . ' data-customer="'   . esc_attr($row['customer_name'])                      . '"'
                 . ' data-seat="'       . esc_attr($row['assigned_seat_label'])                . '"'
+                . ' data-nonce="'      . esc_attr(wp_create_nonce('eco_booking_ops_' . (int) $row['order_id'] . '_' . (int) $row['item_id'])) . '"'
                 . '>';
             echo '<td><input type="checkbox" class="eco-row-select" value="' . esc_attr((string) $row['order_id'] . ':' . (string) $row['item_id']) . '"></td>';
             echo '<td><span class="eco-date-cell">' . esc_html($row['session_date']) . '</span><span class="eco-time-cell">' . esc_html($row['session_label']) . '</span></td>';
@@ -1931,6 +1932,31 @@ function eco_render_workspace_bookings_interface($args = array())
               localStorage.setItem(key, "notified");
               expired.push(d.customer + " \u2014 " + d.seat);
               ecoFireNotification(d.customer, d.seat);
+              // Auto-complete: only fire for checked_in rows
+              if (tr.dataset.ops === "checked_in" && d.nonce) {
+                var parts = d.rowKey.split(":");
+                var autoBody = new URLSearchParams();
+                autoBody.set("action",   "eco_auto_complete_booking");
+                autoBody.set("order_id", parts[0] || "");
+                autoBody.set("item_id",  parts[1] || "");
+                autoBody.set("nonce",    d.nonce);
+                fetch(ajaxurl, {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: autoBody.toString()
+                }).then(function(r) { return r.json(); }).then(function(res) {
+                  if (res && res.success) {
+                    var badge = opsTd.querySelector(".eco-status-badge");
+                    if (badge) {
+                      badge.className = "eco-status-badge eco-badge-ops-completed";
+                      badge.textContent = "Completed";
+                    }
+                    tr.dataset.ops = "completed";
+                    el.textContent = "";
+                  }
+                }).catch(function() {});
+              }
             }
           }
         });
@@ -2426,4 +2452,48 @@ function eco_render_seat_availability_page()
     echo '<div class="wrap">';
     eco_render_seat_availability_interface();
     echo '</div>';
+}
+
+// ─── Auto-complete AJAX ───────────────────────────────────────────────────────
+
+add_action('wp_ajax_eco_auto_complete_booking', 'eco_auto_complete_booking');
+function eco_auto_complete_booking()
+{
+    if (!current_user_can('manage_woocommerce')) {
+        wp_send_json_error(array('message' => 'Unauthorized'), 403);
+    }
+
+    $order_id = isset($_POST['order_id']) ? absint(wp_unslash($_POST['order_id'])) : 0;
+    $item_id  = isset($_POST['item_id'])  ? absint(wp_unslash($_POST['item_id']))  : 0;
+
+    if ($order_id <= 0 || $item_id <= 0) {
+        wp_send_json_error(array('message' => 'Invalid booking item.'));
+    }
+
+    check_ajax_referer('eco_booking_ops_' . $order_id . '_' . $item_id, 'nonce');
+
+    $order = wc_get_order($order_id);
+    if (!$order) {
+        wp_send_json_error(array('message' => 'Order not found.'));
+    }
+
+    $item = $order->get_item($item_id);
+    if (!$item) {
+        wp_send_json_error(array('message' => 'Booking item not found.'));
+    }
+
+    // Only auto-complete sessions that are currently checked in
+    $current_status = sanitize_key((string) $item->get_meta('_eco_checkin_status', true));
+    if ($current_status !== 'checked_in') {
+        wp_send_json_error(array('message' => 'Session is not checked in.'));
+    }
+
+    $error_message = '';
+    // Preserve existing seat assignment (pass 0 so eco_update_single_booking_ops keeps it)
+    $assigned_product_id = (int) $item->get_meta('_eco_assigned_product_id', true);
+    if (!eco_update_single_booking_ops($order_id, $item_id, 'completed', $assigned_product_id, $error_message)) {
+        wp_send_json_error(array('message' => $error_message));
+    }
+
+    wp_send_json_success(array('message' => 'Session marked as completed.'));
 }
