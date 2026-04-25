@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Ecospace Workspace Booking
  * Description: Coworking booking system with hourly, daily, weekly and monthly plans with calendar picker.
- * Version: 18.0
+ * Version: 18.2
  * Author: Ecospace
  */
 

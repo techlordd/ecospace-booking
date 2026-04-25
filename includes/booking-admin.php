@@ -1473,6 +1473,9 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'today', 'eco_paged' => 1))) . '">' . esc_html__('Today', 'ecospace-booking') . '</a>';
     echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'next_2_hours', 'eco_paged' => 1))) . '">' . esc_html__('Next 2 Hours', 'ecospace-booking') . '</a>';
     echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'action_needed', 'eco_paged' => 1))) . '">' . esc_html__('Action Needed', 'ecospace-booking') . '</a>';
+    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'draft', 'eco_paged' => 1))) . '">' . esc_html__('Draft', 'ecospace-booking') . '</a>';
+    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'active_sessions', 'eco_paged' => 1))) . '">' . esc_html__('Active Sessions', 'ecospace-booking') . '</a>';
+    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'no_show', 'eco_paged' => 1))) . '">' . esc_html__('No Show', 'ecospace-booking') . '</a>';
     echo '</div>';
 
     $eco_form_parsed = parse_url($args['base_url']);
@@ -1543,7 +1546,8 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<p class="eco-bookings-count"><strong>' . esc_html($count_text) . '</strong></p>';
     echo '<p id="eco_ops_refresh_note" class="eco-bookings-refresh-note">' . esc_html__('Auto-refresh every 10 minutes.', 'ecospace-booking') . ' <button type="button" class="button button-link" id="eco_ops_refresh_toggle">' . esc_html__('Pause', 'ecospace-booking') . '</button></p>';
 
-    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="eco_bulk_ops_form" class="eco-bookings-bulk-form">';
+    // TODO: Temporarily hidden — bulk "Apply to Selected" form
+    /* echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="eco_bulk_ops_form" class="eco-bookings-bulk-form">';
     wp_nonce_field('eco_bulk_booking_ops_action');
     echo '<input type="hidden" name="action" value="eco_bulk_update_booking_ops">';
     echo '<input type="hidden" name="redirect_to" value="' . esc_url($current_url) . '">';
@@ -1559,7 +1563,7 @@ function eco_render_workspace_bookings_interface($args = array())
     }
     echo '</select></p>';
     echo '<p><button class="button button-primary" type="submit">' . esc_html__('Apply to Selected', 'ecospace-booking') . '</button></p>';
-    echo '</form>';
+    echo '</form>'; */
 
     echo '<div class="eco-bookings-table-wrap">';
     echo '<table id="eco_ops_table">';
@@ -1896,6 +1900,16 @@ function eco_apply_workspace_bookings_preset($preset, $filters)
     } elseif ($preset === 'action_needed') {
         $filters['payment'] = 'paid';
         $filters['ops_status'] = 'booked';
+    } elseif ($preset === 'draft') {
+        $filters['order_status'] = 'checkout-draft';
+    } elseif ($preset === 'active_sessions') {
+        $current_hour = (int) gmdate('G', $now + (int) $offset_seconds);
+        $filters['date']        = gmdate('Y-m-d', $now + (int) $offset_seconds);
+        $filters['ops_status']  = 'checked_in';
+        $filters['window_start'] = $current_hour;
+        $filters['window_end']   = 24;
+    } elseif ($preset === 'no_show') {
+        $filters['ops_status'] = 'no_show';
     }
 
     return $filters;
