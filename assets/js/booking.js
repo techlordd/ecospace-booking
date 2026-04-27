@@ -536,6 +536,10 @@
         }
       }
 
+      if (selectedDate && startTime.options.length === 1) {
+        startTime.options[0].textContent = data.noTimeSlotsMessage || "No time slots available \u2014 this date is fully booked.";
+      }
+
       if (previousStartValue && startTime.querySelector('option[value="' + previousStartValue + '"]')) {
         startTime.value = previousStartValue;
       }
@@ -563,6 +567,10 @@
         if (!selectedDate || !doesRangeOverlap(selectedDate, hour, hour + sessionHours)) {
           startTime.appendChild(createHourOption(hour));
         }
+      }
+
+      if (selectedDate && startTime.options.length === 1) {
+        startTime.options[0].textContent = data.noTimeSlotsMessage || "No time slots available \u2014 this date is fully booked.";
       }
 
       if (previousStartValue && startTime.querySelector('option[value="' + previousStartValue + '"]')) {
@@ -827,6 +835,10 @@
         }
 
         rowEnd.appendChild(createHourOption(hour));
+      }
+
+      if (rowEnd.options.length === 1) {
+        rowEnd.options[0].textContent = data.noEndTimeSlotsMessage || "No end times available \u2014 this start time is fully booked.";
       }
 
       if (previousEnd && rowEnd.querySelector('option[value="' + previousEnd + '"]')) {

@@ -56,6 +56,8 @@ function eco_enqueue_booking_assets()
             'duplicateRecurringDateMessage' => __('Office dates must be unique across office days. Please pick a different date.', 'ecospace-booking'),
             'duplicateRecurringSlotMessage' => __('You selected the same office date and time more than once. Please choose a unique office day.', 'ecospace-booking'),
             'bookedRecurringSlotMessage' => __('This office date and time is already booked. Please select another office day.', 'ecospace-booking'),
+            'noTimeSlotsMessage' => __('No time slots available — this date is fully booked.', 'ecospace-booking'),
+            'noEndTimeSlotsMessage' => __('No end times available — this start time is fully booked.', 'ecospace-booking'),
             'discount' => array(
                 'enabled' => get_post_meta($product->get_id(), '_eco_discount_enabled', true) === 'yes',
                 'percent' => (float) get_post_meta($product->get_id(), '_eco_discount_percent', true),
