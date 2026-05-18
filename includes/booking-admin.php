@@ -782,6 +782,17 @@ function eco_build_workspace_booking_rows($filters)
                 $ops_status = 'booked';
             }
 
+            // Per-date check-in tracking: decode the stored date map (if any).
+            $checkin_dates_raw = (string) $item->get_meta('_eco_checkin_dates', true);
+            $checkin_dates = ($checkin_dates_raw !== '') ? json_decode($checkin_dates_raw, true) : null;
+            if (!is_array($checkin_dates)) {
+                $checkin_dates = null; // null = no per-date data (legacy or non-checked_in item)
+            }
+            $pre_checkin_status = sanitize_key((string) $item->get_meta('_eco_pre_checkin_status', true));
+            if ($pre_checkin_status === '') {
+                $pre_checkin_status = 'booked';
+            }
+
             $assigned_product_id = (int) $item->get_meta('_eco_assigned_product_id', true);
             if ($assigned_product_id <= 0) {
                 $assigned_product_id = $product_id;
@@ -817,7 +828,11 @@ function eco_build_workspace_booking_rows($filters)
                     'session_label' => eco_hour_label($session_start) . ' - ' . eco_hour_label($session_end),
                     'order_status' => $order_status,
                     'is_paid' => (bool) $order->is_paid(),
-                    'ops_status' => $ops_status,
+                    // For checked_in items with per-date data, only the specific checked-in date
+                    // shows checked_in; all other dates fall back to the pre-checkin status.
+                    'ops_status' => ($ops_status === 'checked_in' && is_array($checkin_dates) && !empty($checkin_dates))
+                        ? (isset($checkin_dates[$session_date]) ? 'checked_in' : $pre_checkin_status)
+                        : $ops_status,
                     'assigned_product_id' => $assigned_product_id,
                     'assigned_seat_label' => $assigned_seat_label,
                 );
@@ -910,7 +925,7 @@ function eco_booking_ops_redirect($notice, $message)
     exit;
 }
 
-function eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assigned_product_id, &$error_message)
+function eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assigned_product_id, &$error_message, $session_date = '')
 {
     $order = wc_get_order($order_id);
     if (!$order) {
@@ -951,6 +966,9 @@ function eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assign
         $assigned_label = __('Unknown Seat', 'ecospace-booking');
     }
 
+    // Read the old status BEFORE overwriting it, so we can snapshot the pre-checkin baseline.
+    $old_checkin_status = sanitize_key((string) $item->get_meta('_eco_checkin_status', true));
+
     $item->update_meta_data('_eco_assigned_product_id', $assigned_product_id);
     $item->update_meta_data('_eco_assigned_seat_label', $assigned_label);
     $item->update_meta_data('_eco_assigned_by', get_current_user_id());
@@ -958,6 +976,28 @@ function eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assign
     $item->update_meta_data('_eco_checkin_status', $ops_status);
     $item->update_meta_data('_eco_checkin_updated_by', get_current_user_id());
     $item->update_meta_data('_eco_checkin_updated_at', current_time('mysql'));
+
+    if ($ops_status === 'checked_in' && $session_date !== '') {
+        // Per-date check-in: add this specific date to the map.
+        $checkin_dates_raw = (string) $item->get_meta('_eco_checkin_dates', true);
+        $checkin_dates = ($checkin_dates_raw !== '') ? json_decode($checkin_dates_raw, true) : array();
+        if (!is_array($checkin_dates)) {
+            $checkin_dates = array();
+        }
+        // On the very first check-in for this item, snapshot the pre-checkin status as the baseline
+        // so non-checked-in days can still display their correct prior status.
+        if (empty($checkin_dates)) {
+            $pre = ($old_checkin_status !== '' && $old_checkin_status !== 'checked_in') ? $old_checkin_status : 'booked';
+            $item->update_meta_data('_eco_pre_checkin_status', $pre);
+        }
+        $checkin_dates[$session_date] = true;
+        $item->update_meta_data('_eco_checkin_dates', wp_json_encode($checkin_dates));
+    } elseif ($ops_status !== 'checked_in') {
+        // Any non-check-in status resets the per-date tracking.
+        $item->delete_meta_data('_eco_checkin_dates');
+        $item->delete_meta_data('_eco_pre_checkin_status');
+    }
+
     $item->save();
 
     return true;
@@ -1645,7 +1685,7 @@ function eco_render_workspace_bookings_interface($args = array())
                 . ' data-seat="'       . esc_attr($row['assigned_seat_label'])                . '"'
                 . ' data-nonce="'      . esc_attr(wp_create_nonce('eco_booking_ops_' . (int) $row['order_id'] . '_' . (int) $row['item_id'])) . '"'
                 . '>';
-            echo '<td><input type="checkbox" class="eco-row-select" value="' . esc_attr((string) $row['order_id'] . ':' . (string) $row['item_id']) . '"></td>';
+            echo '<td><input type="checkbox" class="eco-row-select" value="' . esc_attr((string) $row['order_id'] . ':' . (string) $row['item_id'] . ':' . $row['session_date']) . '"></td>';
             echo '<td><span class="eco-date-cell">' . esc_html($row['session_date']) . '</span><span class="eco-time-cell">' . esc_html($row['session_label']) . '</span></td>';
             echo '<td><strong>' . esc_html($row['customer_name']) . '</strong><br><small>' . esc_html($row['customer_email']) . '</small><br><a href="' . esc_url(admin_url('post.php?post=' . (int) $row['order_id'] . '&action=edit')) . '">#' . esc_html((string) $row['order_id']) . '</a></td>';
             echo '<td>' . esc_html($row['product_name']) . '</td>';
@@ -1670,6 +1710,7 @@ function eco_render_workspace_bookings_interface($args = array())
             echo '<input type="hidden" name="redirect_to" value="' . esc_url($current_url) . '">';
             echo '<input type="hidden" name="order_id" value="' . esc_attr((string) $row['order_id']) . '">';
             echo '<input type="hidden" name="item_id" value="' . esc_attr((string) $row['item_id']) . '">';
+            echo '<input type="hidden" name="session_date" value="' . esc_attr($row['session_date']) . '">';
             echo '<select name="assigned_product_id">';
             foreach ($seat_products as $seat_id => $seat_name) {
                 echo '<option value="' . esc_attr((string) $seat_id) . '" ' . selected((int) $row['assigned_product_id'], (int) $seat_id, false) . '>' . esc_html($seat_name) . '</option>';
@@ -2049,6 +2090,7 @@ function eco_update_booking_ops_action()
     $item_id = isset($_POST['item_id']) ? absint(wp_unslash($_POST['item_id'])) : 0;
     $ops_status = isset($_POST['ops_status']) ? sanitize_key(wp_unslash($_POST['ops_status'])) : '';
     $assigned_product_id = isset($_POST['assigned_product_id']) ? absint(wp_unslash($_POST['assigned_product_id'])) : 0;
+    $session_date = isset($_POST['session_date']) ? sanitize_text_field(wp_unslash($_POST['session_date'])) : '';
 
     if ($order_id <= 0 || $item_id <= 0) {
         eco_booking_ops_redirect('error', __('Invalid booking item.', 'ecospace-booking'));
@@ -2057,7 +2099,7 @@ function eco_update_booking_ops_action()
     check_admin_referer('eco_booking_ops_' . $order_id . '_' . $item_id);
 
     $error_message = '';
-    if (!eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assigned_product_id, $error_message)) {
+    if (!eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assigned_product_id, $error_message, $session_date)) {
         eco_booking_ops_redirect('error', $error_message);
     }
 
@@ -2086,20 +2128,21 @@ function eco_bulk_update_booking_ops_action()
 
     foreach ($selected_rows as $selected_row) {
         $parts = explode(':', sanitize_text_field((string) $selected_row));
-        if (count($parts) !== 2) {
+        if (count($parts) < 2) {
             $failed_count++;
             continue;
         }
 
         $order_id = absint($parts[0]);
         $item_id = absint($parts[1]);
+        $row_session_date = isset($parts[2]) ? $parts[2] : '';
         if ($order_id <= 0 || $item_id <= 0) {
             $failed_count++;
             continue;
         }
 
         $error_message = '';
-        if (eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assigned_product_id, $error_message)) {
+        if (eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assigned_product_id, $error_message, $row_session_date)) {
             $success_count++;
         } else {
             $failed_count++;
