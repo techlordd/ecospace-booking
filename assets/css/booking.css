@@ -201,3 +201,27 @@
     margin-left: 0;
   }
 }
+
+/* Booked and past days are non-selectable — make that obvious instead of
+   letting a tap look like it simply did nothing. */
+.flatpickr-day.flatpickr-disabled,
+.flatpickr-day.flatpickr-disabled:hover,
+.flatpickr-day.disabled,
+.flatpickr-day.disabled:hover {
+  color: #b0b0b0;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+/* Mobile now uses flatpickr's own calendar instead of the native date input,
+   so give it room to breathe and a comfortable tap target per day. */
+@media (max-width: 768px) {
+  .flatpickr-calendar {
+    max-width: calc(100vw - 16px);
+  }
+
+  .flatpickr-day {
+    height: 42px;
+    line-height: 42px;
+  }
+}

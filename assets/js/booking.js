@@ -249,14 +249,21 @@
       }
     }
 
+    // Always render flatpickr's own calendar, including on phones/tablets.
+    // Flatpickr's mobile mode swaps in a native <input type="date">, which
+    // only understands min/max — it ignores the "disable" list we set for
+    // booked dates. A tap on a booked date would then be silently discarded
+    // by flatpickr and blank the field with no explanation.
     var startDatePicker = flatpickr(startDate, {
       dateFormat: "Y-m-d",
       minDate: "today",
+      disableMobile: true,
     });
 
     var endDatePicker = flatpickr(endDate, {
       dateFormat: "Y-m-d",
       clickOpens: false,
+      disableMobile: true,
     });
 
     if (defaultPlan && plan && plan.querySelector('option[value="' + defaultPlan + '"]')) {
@@ -1138,6 +1145,7 @@
         dateFormat: "Y-m-d",
         minDate: slotMinDate,
         maxDate: slotMaxDate,
+        disableMobile: true,
         onChange: function () {
           onSlotChange();
         },
