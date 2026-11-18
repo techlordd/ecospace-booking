@@ -1401,6 +1401,31 @@ function eco_render_workspace_bookings_styles($context = 'admin')
     .eco-workspace-bookings-shell .eco-stat-no_show    { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
     .eco-workspace-bookings-shell .eco-stat-draft      { background: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
     .eco-workspace-bookings-shell .eco-stat-cancelled  { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .eco-workspace-bookings-shell .eco-stat-booked     { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+    .eco-workspace-bookings-shell .eco-stat-checked_in { background: #fef3c7; color: #b45309; border-color: #fde68a; }
+    .eco-workspace-bookings-shell a.eco-stat-card { text-decoration: none; cursor: pointer; transition: box-shadow 0.12s ease, transform 0.12s ease; }
+    .eco-workspace-bookings-shell a.eco-stat-card:hover { box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12); transform: translateY(-1px); }
+    .eco-workspace-bookings-shell a.eco-stat-card.is-active { box-shadow: 0 0 0 2px currentColor; }
+
+    /* Filters: primary row + collapsible extras */
+    .eco-workspace-bookings-shell .eco-more-filters { flex-basis: 100%; order: 10; }
+    .eco-workspace-bookings-shell .eco-more-filters > summary { cursor: pointer; font-weight: 600; color: #2271b1; margin-bottom: 8px; }
+    .eco-workspace-bookings-shell .eco-more-filters-body { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+    .eco-workspace-bookings-shell .eco-more-filters-body p { margin: 0; }
+
+    /* Row actions */
+    .eco-workspace-bookings-shell .eco-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .eco-workspace-bookings-shell .eco-row-actions form { margin: 0; }
+    .eco-workspace-bookings-shell .eco-order-note { display: block; font-size: 11px; color: #667085; margin-bottom: 4px; }
+    .eco-workspace-bookings-shell .eco-day-note { display: block; font-size: 11px; color: #667085; margin-top: 4px; }
+    .eco-workspace-bookings-shell .eco-row-menu { display: inline-block; }
+    .eco-workspace-bookings-shell .eco-row-menu > summary { list-style: none; cursor: pointer; padding: 2px 10px; border: 1px solid #c3c4c7; border-radius: 3px; background: #f6f7f7; line-height: 1.8; }
+    .eco-workspace-bookings-shell .eco-row-menu > summary::-webkit-details-marker { display: none; }
+    .eco-workspace-bookings-shell .eco-row-menu-list { margin-top: 6px; padding: 6px; background: #fff; border: 1px solid #dcdcde; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; }
+    .eco-workspace-bookings-shell .eco-row-menu-list .button { width: 100%; text-align: left; }
+    .eco-workspace-bookings-shell .eco-modal-seat-form { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb; }
+    .eco-workspace-bookings-shell .eco-modal-seat-form label { display: block; font-weight: 600; margin-bottom: 6px; }
+    .eco-workspace-bookings-shell .eco-modal-seat-form small { display: block; color: #667085; margin: 6px 0 10px; }
     </style>';
 }
 
@@ -1491,6 +1516,19 @@ function eco_render_workspace_bookings_interface($args = array())
     );
 
     $preset = isset($_GET['preset']) ? sanitize_key(wp_unslash($_GET['preset'])) : '';
+
+    // In wp-admin, open on today's sessions unless the user chose a view/filter (use the "All" tab for everything).
+    $has_explicit_view = ($preset !== '');
+    foreach (array('filter_date', 'filter_plan', 'filter_order_status', 'filter_payment', 'filter_ops_status', 's') as $eco_view_param) {
+        if (isset($_GET[$eco_view_param])) {
+            $has_explicit_view = true;
+        }
+    }
+    $default_to_today = ($args['context'] === 'admin' && !$has_explicit_view);
+    if ($default_to_today) {
+        $preset = 'today';
+    }
+    $active_tab = $preset;
     if ($preset !== '') {
         $filters = eco_apply_workspace_bookings_preset($preset, $filters);
     }
@@ -1521,21 +1559,38 @@ function eco_render_workspace_bookings_interface($args = array())
     }
 
     $eco_stat_counts = eco_get_booking_status_counts();
+    $eco_stat_cards = array(
+        'booked'     => array(__('Booked', 'ecospace-booking'), array('filter_ops_status' => 'booked')),
+        'checked_in' => array(__('Checked In', 'ecospace-booking'), array('filter_ops_status' => 'checked_in')),
+        'completed'  => array(__('Completed', 'ecospace-booking'), array('filter_ops_status' => 'completed')),
+        'no_show'    => array(__('No Show', 'ecospace-booking'), array('filter_ops_status' => 'no_show')),
+        'cancelled'  => array(__('Cancelled', 'ecospace-booking'), array('filter_ops_status' => 'cancelled')),
+        'draft'      => array(__('Draft', 'ecospace-booking'), array('preset' => 'draft')),
+    );
     echo '<div class="eco-stats-bar">';
-    echo '<div class="eco-stat-card eco-stat-completed"><span class="eco-stat-count">' . esc_html($eco_stat_counts['completed']) . '</span><span class="eco-stat-label">' . esc_html__('Completed', 'ecospace-booking') . '</span></div>';
-    echo '<div class="eco-stat-card eco-stat-no_show"><span class="eco-stat-count">' . esc_html($eco_stat_counts['no_show']) . '</span><span class="eco-stat-label">' . esc_html__('No Show', 'ecospace-booking') . '</span></div>';
-    echo '<div class="eco-stat-card eco-stat-draft"><span class="eco-stat-count">' . esc_html($eco_stat_counts['draft']) . '</span><span class="eco-stat-label">' . esc_html__('Draft', 'ecospace-booking') . '</span></div>';
-    echo '<div class="eco-stat-card eco-stat-cancelled"><span class="eco-stat-count">' . esc_html($eco_stat_counts['cancelled']) . '</span><span class="eco-stat-label">' . esc_html__('Cancelled', 'ecospace-booking') . '</span></div>';
+    foreach ($eco_stat_cards as $stat_key => $stat_card) {
+        $is_active_card = isset($stat_card[1]['filter_ops_status'])
+            ? ($filters['ops_status'] === $stat_card[1]['filter_ops_status'] && $active_tab === '')
+            : ($active_tab === 'draft');
+        echo '<a class="eco-stat-card eco-stat-' . esc_attr($stat_key) . ($is_active_card ? ' is-active' : '') . '" href="'
+            . esc_url(add_query_arg(array_merge($stat_card[1], array('eco_paged' => 1)), $args['base_url']))
+            . '"><span class="eco-stat-count">' . esc_html((string) $eco_stat_counts[$stat_key]) . '</span><span class="eco-stat-label">' . esc_html($stat_card[0]) . '</span></a>';
+    }
     echo '</div>';
 
+    $eco_tabs = array(
+        'all'             => __('All', 'ecospace-booking'),
+        'today'           => __('Today', 'ecospace-booking'),
+        'next_2_hours'    => __('Next 2 Hours', 'ecospace-booking'),
+        'action_needed'   => __('Action Needed', 'ecospace-booking'),
+        'active_sessions' => __('Active Sessions', 'ecospace-booking'),
+    );
     echo '<div class="eco-bookings-toolbar">';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'today', 'eco_paged' => 1))) . '">' . esc_html__('Today', 'ecospace-booking') . '</a>';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'next_2_hours', 'eco_paged' => 1))) . '">' . esc_html__('Next 2 Hours', 'ecospace-booking') . '</a>';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'action_needed', 'eco_paged' => 1))) . '">' . esc_html__('Action Needed', 'ecospace-booking') . '</a>';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'draft', 'eco_paged' => 1))) . '">' . esc_html__('Draft', 'ecospace-booking') . '</a>';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'active_sessions', 'eco_paged' => 1))) . '">' . esc_html__('Active Sessions', 'ecospace-booking') . '</a>';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'no_show', 'eco_paged' => 1))) . '">' . esc_html__('No Show', 'ecospace-booking') . '</a>';
-    echo '<a class="button" href="' . esc_url(eco_build_workspace_bookings_url_for_base($args['base_url'], array('preset' => 'booked', 'eco_paged' => 1))) . '">' . esc_html__('Booked', 'ecospace-booking') . '</a>';
+    foreach ($eco_tabs as $tab_key => $tab_label) {
+        echo '<a class="button' . ($active_tab === $tab_key ? ' button-primary' : '') . '" href="'
+            . esc_url(add_query_arg(array('preset' => $tab_key, 'eco_paged' => 1), $args['base_url']))
+            . '">' . esc_html($tab_label) . '</a>';
+    }
     echo '</div>';
 
     $eco_form_parsed = parse_url($args['base_url']);
@@ -1549,6 +1604,21 @@ function eco_render_workspace_bookings_interface($args = array())
         echo '<input type="hidden" name="' . esc_attr($eco_param_key) . '" value="' . esc_attr($eco_param_val) . '">';
     }
     echo '<p><label for="eco_filter_date">' . esc_html__('Date', 'ecospace-booking') . '</label><input type="date" id="eco_filter_date" name="filter_date" value="' . esc_attr($filters['date']) . '"></p>';
+
+    echo '<p><label for="eco_filter_ops_status">' . esc_html__('Status', 'ecospace-booking') . '</label>';
+    echo '<select id="eco_filter_ops_status" name="filter_ops_status">';
+    echo '<option value="all">' . esc_html__('All Statuses', 'ecospace-booking') . '</option>';
+    foreach ($ops_labels as $ops_key => $ops_label) {
+        echo '<option value="' . esc_attr($ops_key) . '" ' . selected($filters['ops_status'], $ops_key, false) . '>' . esc_html($ops_label) . '</option>';
+    }
+    echo '</select></p>';
+
+    echo '<p><label for="eco_filter_search">' . esc_html__('Search', 'ecospace-booking') . '</label><input type="search" id="eco_filter_search" name="s" value="' . esc_attr($filters['search']) . '" placeholder="' . esc_attr__('Customer, seat, order ID', 'ecospace-booking') . '"></p>';
+    echo '<p><button class="button button-primary" type="submit">' . esc_html__('Filter', 'ecospace-booking') . '</button></p>';
+    echo '<p><a class="button" href="' . esc_url($args['reset_url']) . '">' . esc_html__('Reset', 'ecospace-booking') . '</a></p>';
+
+    $more_filters_open = ($filters['plan'] !== '' || $filters['order_status'] !== '' || ($filters['payment'] !== '' && $filters['payment'] !== 'all'));
+    echo '<details class="eco-more-filters"' . ($more_filters_open ? ' open' : '') . '><summary>' . esc_html__('More filters', 'ecospace-booking') . '</summary><div class="eco-more-filters-body">';
     echo '<p><label for="eco_filter_plan">' . esc_html__('Plan', 'ecospace-booking') . '</label>';
     echo '<select id="eco_filter_plan" name="filter_plan">';
     echo '<option value="">' . esc_html__('All Plans', 'ecospace-booking') . '</option>';
@@ -1572,18 +1642,7 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<option value="paid" ' . selected($filters['payment'], 'paid', false) . '>' . esc_html__('Paid', 'ecospace-booking') . '</option>';
     echo '<option value="unpaid" ' . selected($filters['payment'], 'unpaid', false) . '>' . esc_html__('Unpaid', 'ecospace-booking') . '</option>';
     echo '</select></p>';
-
-    echo '<p><label for="eco_filter_ops_status">' . esc_html__('Ops Status', 'ecospace-booking') . '</label>';
-    echo '<select id="eco_filter_ops_status" name="filter_ops_status">';
-    echo '<option value="all">' . esc_html__('All Ops Statuses', 'ecospace-booking') . '</option>';
-    foreach ($ops_labels as $ops_key => $ops_label) {
-        echo '<option value="' . esc_attr($ops_key) . '" ' . selected($filters['ops_status'], $ops_key, false) . '>' . esc_html($ops_label) . '</option>';
-    }
-    echo '</select></p>';
-
-    echo '<p><label for="eco_filter_search">' . esc_html__('Search', 'ecospace-booking') . '</label><input type="search" id="eco_filter_search" name="s" value="' . esc_attr($filters['search']) . '" placeholder="' . esc_attr__('Customer, seat, order ID', 'ecospace-booking') . '"></p>';
-    echo '<p><button class="button button-primary" type="submit">' . esc_html__('Filter', 'ecospace-booking') . '</button></p>';
-    echo '<p><a class="button" href="' . esc_url($args['reset_url']) . '">' . esc_html__('Reset', 'ecospace-booking') . '</a></p>';
+    echo '</div></details>';
     echo '</form>';
 
     if ($total_rows === 0) {
@@ -1639,7 +1698,11 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '</tr></thead><tbody>';
 
     if (empty($rows)) {
-        echo '<tr><td colspan="8" class="eco-bookings-empty">' . esc_html__('No bookings found for current filters.', 'ecospace-booking') . '</td></tr>';
+        echo '<tr><td colspan="8" class="eco-bookings-empty">' . esc_html($default_to_today ? __('No sessions today.', 'ecospace-booking') : __('No bookings found for current filters.', 'ecospace-booking'));
+        if ($default_to_today) {
+            echo ' <a href="' . esc_url(add_query_arg(array('preset' => 'all'), $args['base_url'])) . '">' . esc_html__('View all bookings', 'ecospace-booking') . '</a>';
+        }
+        echo '</td></tr>';
     } else {
         foreach ($paged_rows as $row) {
             $ops_slug = sanitize_html_class($row['ops_status']);
@@ -1658,39 +1721,71 @@ function eco_render_workspace_bookings_interface($args = array())
             echo '<td><strong>' . esc_html($row['customer_name']) . '</strong><br><small>' . esc_html($row['customer_email']) . '</small><br><a href="' . esc_url(admin_url('post.php?post=' . (int) $row['order_id'] . '&action=edit')) . '">#' . esc_html((string) $row['order_id']) . '</a></td>';
             echo '<td>' . esc_html($row['product_name']) . '</td>';
             echo '<td><span class="eco-status-badge eco-badge-plan">' . esc_html($row['plan']) . '</span></td>';
-            echo '<td>' . esc_html(ucfirst($row['order_status'])) . '<br><span class="eco-status-badge ' . ($row['is_paid'] ? 'eco-badge-paid' : 'eco-badge-unpaid') . '">' . esc_html($row['is_paid'] ? __('Paid', 'ecospace-booking') : __('Unpaid', 'ecospace-booking')) . '</span></td>';
-            echo '<td class="eco-ops-td"><span class="eco-status-badge eco-badge-ops-' . esc_attr($ops_slug) . '">' . esc_html($ops_labels[$row['ops_status']] ?? ucfirst($row['ops_status'])) . '</span></td>';
-            echo '<td>';
+            echo '<td><span class="eco-order-note">' . esc_html(sprintf(__('Order: %s', 'ecospace-booking'), ucfirst($row['order_status']))) . '</span><span class="eco-status-badge ' . ($row['is_paid'] ? 'eco-badge-paid' : 'eco-badge-unpaid') . '">' . esc_html($row['is_paid'] ? __('Paid', 'ecospace-booking') : __('Unpaid', 'ecospace-booking')) . '</span></td>';
+            echo '<td class="eco-ops-td"><span class="eco-status-badge eco-badge-ops-' . esc_attr($ops_slug) . '">' . esc_html($ops_labels[$row['ops_status']] ?? ucfirst($row['ops_status'])) . '</span>';
+            if ((int) $row['day_total'] > 1) {
+                echo '<span class="eco-day-note">' . esc_html(sprintf(__('Day %1$d of %2$d', 'ecospace-booking'), (int) $row['day_index'], (int) $row['day_total'])) . '</span>';
+            }
+            echo '</td>';
+
+            $row_nonce = wp_create_nonce('eco_booking_ops_' . (int) $row['order_id'] . '_' . (int) $row['item_id']);
+            $quick_action = function ($target_status, $label, $button_class) use ($row, $current_url, $row_nonce) {
+                $confirm = ($target_status === 'cancelled')
+                    ? ' onclick="return confirm(\'' . esc_js(__('Cancel this session?', 'ecospace-booking')) . '\');"'
+                    : '';
+                return '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
+                    . '<input type="hidden" name="_wpnonce" value="' . esc_attr($row_nonce) . '">'
+                    . '<input type="hidden" name="action" value="eco_update_booking_ops">'
+                    . '<input type="hidden" name="redirect_to" value="' . esc_url($current_url) . '">'
+                    . '<input type="hidden" name="order_id" value="' . esc_attr((string) $row['order_id']) . '">'
+                    . '<input type="hidden" name="item_id" value="' . esc_attr((string) $row['item_id']) . '">'
+                    . '<input type="hidden" name="session_date" value="' . esc_attr($row['session_date']) . '">'
+                    . '<input type="hidden" name="assigned_product_id" value="' . esc_attr((string) $row['assigned_product_id']) . '">'
+                    . '<input type="hidden" name="ops_status" value="' . esc_attr($target_status) . '">'
+                    . '<button type="submit" class="button ' . esc_attr($button_class) . '"' . $confirm . '>' . esc_html($label) . '</button>'
+                    . '</form>';
+            };
+
+            // Primary next-step button, plus a "more" menu for the other transitions.
+            $primary_html = '';
+            $menu_html = '';
+            $current_ops = $row['ops_status'];
+            if ($current_ops === 'booked' || $current_ops === 'assigned') {
+                $primary_html = $quick_action('checked_in', __('Check in', 'ecospace-booking'), 'button-primary');
+            } elseif ($current_ops === 'checked_in') {
+                $primary_html = $quick_action('completed', __('Complete', 'ecospace-booking'), 'button-primary');
+                $menu_html .= $quick_action('booked', __('Back to booked', 'ecospace-booking'), 'button-secondary');
+            } else {
+                $primary_html = $quick_action('booked', __('Reopen', 'ecospace-booking'), 'button-secondary');
+            }
+            if ($current_ops !== 'no_show') {
+                $menu_html .= $quick_action('no_show', __('Mark no-show', 'ecospace-booking'), 'button-secondary');
+            }
+            if ($current_ops !== 'cancelled') {
+                $menu_html .= $quick_action('cancelled', __('Cancel session', 'ecospace-booking'), 'button-secondary');
+            }
+
+            echo '<td><div class="eco-row-actions">';
+            echo $primary_html; // Built from escaped parts above.
             echo '<button type="button" class="button button-secondary eco-view-customer"'
                 . ' data-name="'   . esc_attr($row['customer_name'])         . '"'
                 . ' data-email="'  . esc_attr($row['customer_email'])        . '"'
                 . ' data-phone="'  . esc_attr($row['customer_phone'])        . '"'
                 . ' data-order="'  . esc_attr((string) $row['order_id'])     . '"'
+                . ' data-item="'   . esc_attr((string) $row['item_id'])      . '"'
+                . ' data-nonce="'  . esc_attr($row_nonce)                    . '"'
+                . ' data-ops="'    . esc_attr($row['ops_status'])            . '"'
+                . ' data-seat-id="' . esc_attr((string) $row['assigned_product_id']) . '"'
                 . ' data-status="' . esc_attr(ucfirst($row['order_status'])) . '"'
                 . ' data-plan="'   . esc_attr($row['plan'])                  . '"'
                 . ' data-date="'   . esc_attr($row['session_date'])          . '"'
                 . ' data-time="'   . esc_attr($row['session_label'])         . '"'
                 . ' data-seat="'   . esc_attr($row['assigned_seat_label'])   . '"'
-                . '>' . esc_html__('View Customer', 'ecospace-booking') . '</button>';
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="eco-bookings-inline-form">';
-            wp_nonce_field('eco_booking_ops_' . (int) $row['order_id'] . '_' . (int) $row['item_id']);
-            echo '<input type="hidden" name="action" value="eco_update_booking_ops">';
-            echo '<input type="hidden" name="redirect_to" value="' . esc_url($current_url) . '">';
-            echo '<input type="hidden" name="order_id" value="' . esc_attr((string) $row['order_id']) . '">';
-            echo '<input type="hidden" name="item_id" value="' . esc_attr((string) $row['item_id']) . '">';
-            echo '<input type="hidden" name="session_date" value="' . esc_attr($row['session_date']) . '">';
-            echo '<select name="assigned_product_id">';
-            foreach ($seat_products as $seat_id => $seat_name) {
-                echo '<option value="' . esc_attr((string) $seat_id) . '" ' . selected((int) $row['assigned_product_id'], (int) $seat_id, false) . '>' . esc_html($seat_name) . '</option>';
+                . '>' . esc_html__('Details', 'ecospace-booking') . '</button>';
+            if ($menu_html !== '') {
+                echo '<details class="eco-row-menu"><summary aria-label="' . esc_attr__('More actions', 'ecospace-booking') . '">&hellip;</summary><div class="eco-row-menu-list">' . $menu_html . '</div></details>'; // Built from escaped parts above.
             }
-            echo '</select>';
-            echo '<select name="ops_status">';
-            foreach ($ops_labels as $ops_key => $ops_label) {
-                echo '<option value="' . esc_attr($ops_key) . '" ' . selected($row['ops_status'], $ops_key, false) . '>' . esc_html($ops_label) . '</option>';
-            }
-            echo '</select>';
-            echo '<button class="button button-secondary" type="submit">' . esc_html__('Update', 'ecospace-booking') . '</button>';
-            echo '</form>';
+            echo '</div>';
             echo '</td>';
             echo '</tr>';
         }
@@ -1704,7 +1799,7 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<div id="eco_customer_modal" class="eco-modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="eco_modal_title" aria-hidden="true">';
     echo '<div class="eco-modal-box">';
     echo '<button type="button" class="eco-modal-close" id="eco_modal_close" aria-label="' . esc_attr__('Close', 'ecospace-booking') . '">&times;</button>';
-    echo '<h3 id="eco_modal_title">' . esc_html__('Customer Details', 'ecospace-booking') . '</h3>';
+    echo '<h3 id="eco_modal_title">' . esc_html__('Booking Details', 'ecospace-booking') . '</h3>';
     echo '<table class="eco-modal-table">';
     echo '<tr><th>' . esc_html__('Name', 'ecospace-booking')         . '</th><td id="eco_modal_name"></td></tr>';
     echo '<tr><th>' . esc_html__('Email', 'ecospace-booking')        . '</th><td id="eco_modal_email"></td></tr>';
@@ -1716,6 +1811,23 @@ function eco_render_workspace_bookings_interface($args = array())
     echo '<tr><th>' . esc_html__('Time', 'ecospace-booking')         . '</th><td id="eco_modal_time"></td></tr>';
     echo '<tr><th>' . esc_html__('Seat', 'ecospace-booking')         . '</th><td id="eco_modal_seat"></td></tr>';
     echo '</table>';
+    echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" id="eco_modal_seat_form" class="eco-modal-seat-form">';
+    echo '<input type="hidden" name="_wpnonce" id="eco_modal_nonce" value="">';
+    echo '<input type="hidden" name="action" value="eco_update_booking_ops">';
+    echo '<input type="hidden" name="redirect_to" value="' . esc_url($current_url) . '">';
+    echo '<input type="hidden" name="order_id" id="eco_modal_f_order" value="">';
+    echo '<input type="hidden" name="item_id" id="eco_modal_f_item" value="">';
+    echo '<input type="hidden" name="session_date" id="eco_modal_f_date" value="">';
+    echo '<input type="hidden" name="ops_status" id="eco_modal_f_ops" value="booked">';
+    echo '<label for="eco_modal_f_seat">' . esc_html__('Assign seat', 'ecospace-booking') . '</label>';
+    echo '<select name="assigned_product_id" id="eco_modal_f_seat">';
+    foreach ($seat_products as $seat_id => $seat_name) {
+        echo '<option value="' . esc_attr((string) $seat_id) . '">' . esc_html($seat_name) . '</option>';
+    }
+    echo '</select>';
+    echo '<small>' . esc_html__('The seat applies to the whole booking, not just this date. Seat conflicts are checked on save.', 'ecospace-booking') . '</small>';
+    echo '<button type="submit" class="button button-primary">' . esc_html__('Save seat', 'ecospace-booking') . '</button>';
+    echo '</form>';
     echo '<div class="eco-modal-actions">';
     echo '<a id="eco_modal_email_link" href="#" class="button button-primary" target="_blank" rel="noopener noreferrer">'    . esc_html__('Send Email', 'ecospace-booking')  . '</a>';
     echo '<a id="eco_modal_order_link" href="#" class="button button-secondary" target="_blank" rel="noopener noreferrer">' . esc_html__('View Order', 'ecospace-booking')   . '</a>';
@@ -1802,6 +1914,12 @@ function eco_render_workspace_bookings_interface($args = array())
           document.getElementById("eco_modal_order_link").href = d.order
             ? ecoOrderBase + "?post=" + encodeURIComponent(d.order) + "&action=edit"
             : "#";
+          document.getElementById("eco_modal_nonce").value  = d.nonce || "";
+          document.getElementById("eco_modal_f_order").value = d.order || "";
+          document.getElementById("eco_modal_f_item").value  = d.item  || "";
+          document.getElementById("eco_modal_f_date").value  = d.date  || "";
+          document.getElementById("eco_modal_f_ops").value   = d.ops   || "booked";
+          document.getElementById("eco_modal_f_seat").value  = d.seatId || "";
           ecoModal.style.display = "flex";
           ecoModal.setAttribute("aria-hidden", "false");
         });
