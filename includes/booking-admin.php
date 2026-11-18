@@ -777,21 +777,10 @@ function eco_build_workspace_booking_rows($filters)
 
             $product_id = (int) $item->get_product_id();
             $product_name = $item->get_name();
-            $ops_status = sanitize_key((string) $item->get_meta('_eco_checkin_status', true));
-            if ($ops_status === '') {
-                $ops_status = 'booked';
-            }
-
-            // Per-date check-in tracking: decode the stored date map (if any).
-            $checkin_dates_raw = (string) $item->get_meta('_eco_checkin_dates', true);
-            $checkin_dates = ($checkin_dates_raw !== '') ? json_decode($checkin_dates_raw, true) : null;
-            if (!is_array($checkin_dates)) {
-                $checkin_dates = null; // null = no per-date data (legacy or non-checked_in item)
-            }
-            $pre_checkin_status = sanitize_key((string) $item->get_meta('_eco_pre_checkin_status', true));
-            if ($pre_checkin_status === '') {
-                $pre_checkin_status = 'booked';
-            }
+            // Per-date status map (legacy items are derived on read, see booking-status.php).
+            $session_statuses = eco_get_item_session_statuses($item, $booking);
+            $session_dates = array_keys($session_statuses);
+            $day_total = count($session_dates);
 
             $assigned_product_id = (int) $item->get_meta('_eco_assigned_product_id', true);
             if ($assigned_product_id <= 0) {
@@ -828,11 +817,9 @@ function eco_build_workspace_booking_rows($filters)
                     'session_label' => eco_hour_label($session_start) . ' - ' . eco_hour_label($session_end),
                     'order_status' => $order_status,
                     'is_paid' => (bool) $order->is_paid(),
-                    // For checked_in items with per-date data, only the specific checked-in date
-                    // shows checked_in; all other dates fall back to the pre-checkin status.
-                    'ops_status' => ($ops_status === 'checked_in' && is_array($checkin_dates) && !empty($checkin_dates))
-                        ? (isset($checkin_dates[$session_date]) ? 'checked_in' : $pre_checkin_status)
-                        : $ops_status,
+                    'ops_status' => isset($session_statuses[$session_date]) ? $session_statuses[$session_date] : 'booked',
+                    'day_index' => ($day_total > 1) ? ((int) array_search($session_date, $session_dates, true) + 1) : 0,
+                    'day_total' => $day_total,
                     'assigned_product_id' => $assigned_product_id,
                     'assigned_seat_label' => $assigned_seat_label,
                 );
@@ -966,37 +953,18 @@ function eco_update_single_booking_ops($order_id, $item_id, $ops_status, $assign
         $assigned_label = __('Unknown Seat', 'ecospace-booking');
     }
 
-    // Read the old status BEFORE overwriting it, so we can snapshot the pre-checkin baseline.
-    $old_checkin_status = sanitize_key((string) $item->get_meta('_eco_checkin_status', true));
+    $session_date = eco_is_valid_session_date($session_date) ? $session_date : '';
 
     $item->update_meta_data('_eco_assigned_product_id', $assigned_product_id);
     $item->update_meta_data('_eco_assigned_seat_label', $assigned_label);
     $item->update_meta_data('_eco_assigned_by', get_current_user_id());
     $item->update_meta_data('_eco_assigned_at', current_time('mysql'));
-    $item->update_meta_data('_eco_checkin_status', $ops_status);
     $item->update_meta_data('_eco_checkin_updated_by', get_current_user_id());
     $item->update_meta_data('_eco_checkin_updated_at', current_time('mysql'));
 
-    if ($ops_status === 'checked_in' && $session_date !== '') {
-        // Per-date check-in: add this specific date to the map.
-        $checkin_dates_raw = (string) $item->get_meta('_eco_checkin_dates', true);
-        $checkin_dates = ($checkin_dates_raw !== '') ? json_decode($checkin_dates_raw, true) : array();
-        if (!is_array($checkin_dates)) {
-            $checkin_dates = array();
-        }
-        // On the very first check-in for this item, snapshot the pre-checkin status as the baseline
-        // so non-checked-in days can still display their correct prior status.
-        if (empty($checkin_dates)) {
-            $pre = ($old_checkin_status !== '' && $old_checkin_status !== 'checked_in') ? $old_checkin_status : 'booked';
-            $item->update_meta_data('_eco_pre_checkin_status', $pre);
-        }
-        $checkin_dates[$session_date] = true;
-        $item->update_meta_data('_eco_checkin_dates', wp_json_encode($checkin_dates));
-    } elseif ($ops_status !== 'checked_in') {
-        // Any non-check-in status resets the per-date tracking.
-        $item->delete_meta_data('_eco_checkin_dates');
-        $item->delete_meta_data('_eco_pre_checkin_status');
-    }
+    // Status is tracked per session date; only the given date changes (all dates if none given).
+    // Legacy _eco_checkin_* meta is left in place and `_eco_checkin_status` is kept as a summary.
+    eco_set_item_session_status($item, $booking, $ops_status, $session_date);
 
     $item->save();
 
@@ -1931,7 +1899,7 @@ function eco_render_workspace_bookings_interface($args = array())
         var d = tr.dataset;
         var endTs = new Date(d.endDate + "T" + (d.endHour.length < 2 ? "0" + d.endHour : d.endHour) + ":00:00").getTime();
         if (endTs && Date.now() >= endTs) {
-          var key = "eco_timer_" + d.rowKey;
+          var key = "eco_timer_" + d.rowKey + ":" + d.endDate;
           var opsTd = tr.querySelector(".eco-ops-td");
           if (opsTd) {
             var el = ecoGetOrCreateTimerEl(opsTd);
@@ -1966,7 +1934,7 @@ function eco_render_workspace_bookings_interface($args = array())
             el.className = "eco-timer-countdown";
             el.textContent = ecoFormatCountdown(remaining);
           } else {
-            var key = "eco_timer_" + d.rowKey;
+            var key = "eco_timer_" + d.rowKey + ":" + d.endDate;
             el.className = "eco-timer-expired";
             el.textContent = "Session ended";
             if (!localStorage.getItem(key)) {
@@ -1980,6 +1948,7 @@ function eco_render_workspace_bookings_interface($args = array())
                 autoBody.set("action",   "eco_auto_complete_booking");
                 autoBody.set("order_id", parts[0] || "");
                 autoBody.set("item_id",  parts[1] || "");
+                autoBody.set("session_date", d.endDate || "");
                 autoBody.set("nonce",    d.nonce);
                 fetch(ajaxurl, {
                   method: "POST",
@@ -2011,11 +1980,15 @@ function eco_render_workspace_bookings_interface($args = array())
 
 function eco_get_booking_status_counts()
 {
+    // Counts are per SESSION (one per booked date), matching the rows in the bookings table.
     $counts = array(
-        'completed' => 0,
-        'no_show'   => 0,
-        'cancelled' => 0,
-        'draft'     => 0,
+        'booked'     => 0,
+        'assigned'   => 0,
+        'checked_in' => 0,
+        'completed'  => 0,
+        'no_show'    => 0,
+        'cancelled'  => 0,
+        'draft'      => 0,
     );
 
     $orders = wc_get_orders(array(
@@ -2029,17 +2002,15 @@ function eco_get_booking_status_counts()
     foreach ($orders as $order) {
         $is_draft = ($order->get_status() === 'checkout-draft');
         foreach ($order->get_items() as $item) {
-            if (!is_array(eco_parse_booking_payload_from_item($item))) {
+            $booking = eco_parse_booking_payload_from_item($item);
+            if (!is_array($booking)) {
                 continue;
             }
             if ($is_draft) {
-                $counts['draft']++;
+                $counts['draft'] += max(1, count(eco_get_session_dates_from_booking($booking)));
                 continue;
             }
-            $ops_status = sanitize_key((string) $item->get_meta('_eco_checkin_status', true));
-            if (isset($counts[$ops_status])) {
-                $counts[$ops_status]++;
-            }
+            eco_count_session_statuses_for_item($item, $booking, $counts);
         }
     }
 
@@ -2513,6 +2484,8 @@ function eco_auto_complete_booking()
         wp_send_json_error(array('message' => 'Invalid booking item.'));
     }
 
+    $session_date = isset($_POST['session_date']) ? sanitize_text_field(wp_unslash($_POST['session_date'])) : '';
+
     check_ajax_referer('eco_booking_ops_' . $order_id . '_' . $item_id, 'nonce');
 
     $order = wc_get_order($order_id);
@@ -2525,16 +2498,21 @@ function eco_auto_complete_booking()
         wp_send_json_error(array('message' => 'Booking item not found.'));
     }
 
-    // Only auto-complete sessions that are currently checked in
-    $current_status = sanitize_key((string) $item->get_meta('_eco_checkin_status', true));
-    if ($current_status !== 'checked_in') {
+    $booking = eco_parse_booking_payload_from_item($item);
+    if (!is_array($booking) || !eco_is_valid_session_date($session_date)) {
+        wp_send_json_error(array('message' => 'Invalid session.'));
+    }
+
+    // Only auto-complete THIS date, and only if it is currently checked in.
+    $session_statuses = eco_get_item_session_statuses($item, $booking);
+    if (!isset($session_statuses[$session_date]) || $session_statuses[$session_date] !== 'checked_in') {
         wp_send_json_error(array('message' => 'Session is not checked in.'));
     }
 
     $error_message = '';
     // Preserve existing seat assignment (pass 0 so eco_update_single_booking_ops keeps it)
     $assigned_product_id = (int) $item->get_meta('_eco_assigned_product_id', true);
-    if (!eco_update_single_booking_ops($order_id, $item_id, 'completed', $assigned_product_id, $error_message)) {
+    if (!eco_update_single_booking_ops($order_id, $item_id, 'completed', $assigned_product_id, $error_message, $session_date)) {
         wp_send_json_error(array('message' => $error_message));
     }
 
