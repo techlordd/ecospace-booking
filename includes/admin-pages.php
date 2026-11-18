@@ -36,6 +36,59 @@ function eco_register_main_admin_menu()
     }
 }
 
+/**
+ * Keep EcoSpace pages registered under the EcoSpace menu only.
+ *
+ * If another plugin (e.g. a menu editor with a saved layout) leaves an EcoSpace slug under a
+ * different parent such as WooCommerce, WordPress resolves the page to that parent first, finds no
+ * page hook registered there and answers "Sorry, you are not allowed to access this page" (and the
+ * menu link loses its admin.php?page= prefix). This runs after all other admin_menu callbacks:
+ * it removes such stray copies and re-adds any EcoSpace page that went missing.
+ */
+add_action('admin_menu', 'eco_repair_admin_menu', PHP_INT_MAX);
+function eco_repair_admin_menu()
+{
+    global $submenu;
+    if (!is_array($submenu)) {
+        return;
+    }
+
+    $pages = array(
+        'eco-workspace-bookings' => array(__('Bookings', 'ecospace-booking'), 'eco_render_workspace_bookings_page'),
+        'eco-workspaces' => array(__('Workspaces', 'ecospace-booking'), 'eco_render_workspaces_page'),
+        'eco-customers' => array(__('Customers', 'ecospace-booking'), 'eco_render_customers_page'),
+        'eco-payments' => array(__('Payments', 'ecospace-booking'), 'eco_render_payments_page'),
+        'eco-active-sessions' => array(__('Active Sessions', 'ecospace-booking'), 'eco_render_active_sessions_page'),
+        'eco-plans' => array(__('Plans', 'ecospace-booking'), 'eco_render_plans_page'),
+        'eco-settings' => array(__('Settings', 'ecospace-booking'), 'eco_render_settings_page'),
+    );
+
+    // 1. Remove copies registered under any other parent.
+    foreach ($submenu as $parent => $items) {
+        if ($parent === 'ecospace') {
+            continue;
+        }
+        foreach ($items as $key => $item) {
+            if (isset($item[2]) && isset($pages[$item[2]])) {
+                unset($submenu[$parent][$key]);
+            }
+        }
+    }
+
+    // 2. Re-add anything missing from the EcoSpace menu.
+    $present = array();
+    foreach ((isset($submenu['ecospace']) ? $submenu['ecospace'] : array()) as $item) {
+        if (isset($item[2])) {
+            $present[$item[2]] = true;
+        }
+    }
+    foreach ($pages as $slug => $page) {
+        if (!isset($present[$slug])) {
+            add_submenu_page('ecospace', $page[0], $page[0], 'manage_woocommerce', $slug, $page[1]);
+        }
+    }
+}
+
 function eco_get_admin_page_slugs()
 {
     return array('ecospace', 'eco-workspace-bookings', 'eco-workspaces', 'eco-customers', 'eco-payments', 'eco-active-sessions', 'eco-plans', 'eco-settings', 'eco-seat-availability');
