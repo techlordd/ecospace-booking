@@ -606,19 +606,13 @@ function eco_rebuild_slots_admin_notice()
     );
 }
 
-add_action('admin_menu', 'eco_register_workspace_bookings_menu');
-function eco_register_workspace_bookings_menu()
+// Menu registration lives in admin-pages.php (top-level "EcoSpace" menu).
+// The old Seat Availability URL stays registered (hidden) so existing bookmarks keep working.
+add_action('admin_menu', 'eco_register_legacy_admin_pages');
+function eco_register_legacy_admin_pages()
 {
     add_submenu_page(
-        'woocommerce',
-        __('Workspace Bookings', 'ecospace-booking'),
-        __('Workspace Bookings', 'ecospace-booking'),
-        'manage_woocommerce',
-        'eco-workspace-bookings',
-        'eco_render_workspace_bookings_page'
-    );
-    add_submenu_page(
-        'woocommerce',
+        null,
         __('Seat Availability', 'ecospace-booking'),
         __('Seat Availability', 'ecospace-booking'),
         'manage_woocommerce',
@@ -1486,6 +1480,30 @@ function eco_render_bookings_pagination_nav($current_page, $total_pages, $base_u
     echo '</nav>';
 }
 
+/**
+ * One-click status form for a single session row (changes only that row's date).
+ * Returns HTML built from escaped parts.
+ */
+function eco_get_row_action_form_html($row, $redirect_url, $target_status, $label, $button_class = 'button-secondary')
+{
+    $nonce = wp_create_nonce('eco_booking_ops_' . (int) $row['order_id'] . '_' . (int) $row['item_id']);
+    $confirm = ($target_status === 'cancelled')
+        ? ' onclick="return confirm(\'' . esc_js(__('Cancel this session?', 'ecospace-booking')) . '\');"'
+        : '';
+
+    return '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
+        . '<input type="hidden" name="_wpnonce" value="' . esc_attr($nonce) . '">'
+        . '<input type="hidden" name="action" value="eco_update_booking_ops">'
+        . '<input type="hidden" name="redirect_to" value="' . esc_url($redirect_url) . '">'
+        . '<input type="hidden" name="order_id" value="' . esc_attr((string) $row['order_id']) . '">'
+        . '<input type="hidden" name="item_id" value="' . esc_attr((string) $row['item_id']) . '">'
+        . '<input type="hidden" name="session_date" value="' . esc_attr($row['session_date']) . '">'
+        . '<input type="hidden" name="assigned_product_id" value="' . esc_attr((string) $row['assigned_product_id']) . '">'
+        . '<input type="hidden" name="ops_status" value="' . esc_attr($target_status) . '">'
+        . '<button type="submit" class="button ' . esc_attr($button_class) . '"' . $confirm . '>' . esc_html($label) . '</button>'
+        . '</form>';
+}
+
 function eco_render_workspace_bookings_interface($args = array())
 {
     if (!current_user_can('manage_woocommerce')) {
@@ -1729,21 +1747,8 @@ function eco_render_workspace_bookings_interface($args = array())
             echo '</td>';
 
             $row_nonce = wp_create_nonce('eco_booking_ops_' . (int) $row['order_id'] . '_' . (int) $row['item_id']);
-            $quick_action = function ($target_status, $label, $button_class) use ($row, $current_url, $row_nonce) {
-                $confirm = ($target_status === 'cancelled')
-                    ? ' onclick="return confirm(\'' . esc_js(__('Cancel this session?', 'ecospace-booking')) . '\');"'
-                    : '';
-                return '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
-                    . '<input type="hidden" name="_wpnonce" value="' . esc_attr($row_nonce) . '">'
-                    . '<input type="hidden" name="action" value="eco_update_booking_ops">'
-                    . '<input type="hidden" name="redirect_to" value="' . esc_url($current_url) . '">'
-                    . '<input type="hidden" name="order_id" value="' . esc_attr((string) $row['order_id']) . '">'
-                    . '<input type="hidden" name="item_id" value="' . esc_attr((string) $row['item_id']) . '">'
-                    . '<input type="hidden" name="session_date" value="' . esc_attr($row['session_date']) . '">'
-                    . '<input type="hidden" name="assigned_product_id" value="' . esc_attr((string) $row['assigned_product_id']) . '">'
-                    . '<input type="hidden" name="ops_status" value="' . esc_attr($target_status) . '">'
-                    . '<button type="submit" class="button ' . esc_attr($button_class) . '"' . $confirm . '>' . esc_html($label) . '</button>'
-                    . '</form>';
+            $quick_action = function ($target_status, $label, $button_class) use ($row, $current_url) {
+                return eco_get_row_action_form_html($row, $current_url, $target_status, $label, $button_class);
             };
 
             // Primary next-step button, plus a "more" menu for the other transitions.
@@ -2258,8 +2263,13 @@ function eco_render_workspace_bookings_page()
         wp_die(esc_html__('You are not allowed to view workspace bookings.', 'ecospace-booking'));
     }
 
-    echo '<div class="wrap">';
-    eco_render_workspace_bookings_interface();
+    echo '<div class="wrap eco-admin">';
+    eco_render_workspace_bookings_interface(
+        array(
+            'title' => __('Bookings', 'ecospace-booking'),
+            'description' => __('Manage all workspace bookings: check customers in, complete sessions, verify payment, and assign seats.', 'ecospace-booking'),
+        )
+    );
     echo '</div>';
 }
 
@@ -2449,7 +2459,7 @@ function eco_render_seat_availability_styles()
     </style>';
 }
 
-function eco_render_seat_availability_interface()
+function eco_render_seat_availability_interface($page_slug = 'eco-seat-availability', $heading = true)
 {
     $config     = eco_get_default_booking_config();
     $open_hour  = (int) $config['open_hour'];
@@ -2469,13 +2479,15 @@ function eco_render_seat_availability_interface()
     eco_render_seat_availability_styles();
 
     echo '<div class="eco-seat-availability-wrap">';
-    echo '<h1>' . esc_html__('Seat Availability', 'ecospace-booking') . '</h1>';
-    echo '<p>' . esc_html__('Airline-style seat grid for the selected date. Each cell shows who has booked that seat during that hour.', 'ecospace-booking') . '</p>';
+    if ($heading) {
+        echo '<h1>' . esc_html__('Seat Availability', 'ecospace-booking') . '</h1>';
+    }
+    echo '<p>' . esc_html__('Seat grid for the selected date. Each cell shows who has booked that seat during that hour.', 'ecospace-booking') . '</p>';
 
     // Date picker form
     $page_url = admin_url('admin.php');
     echo '<form method="get" action="' . esc_url($page_url) . '" class="eco-seat-date-form">';
-    echo '<input type="hidden" name="page" value="eco-seat-availability">';
+    echo '<input type="hidden" name="page" value="' . esc_attr($page_slug) . '">';
     echo '<p><label for="eco_grid_date">' . esc_html__('Date', 'ecospace-booking') . '</label>';
     echo '<input type="date" id="eco_grid_date" name="eco_grid_date" value="' . esc_attr($date) . '"></p>';
     echo '<p style="margin:0"><button class="button button-primary" type="submit">' . esc_html__('View', 'ecospace-booking') . '</button></p>';

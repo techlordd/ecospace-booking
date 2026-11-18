@@ -1,0 +1,64 @@
+/* EcoSpace admin screens (Dashboard, Workspaces, Customers, Payments, Active Sessions, Plans, Settings). */
+.eco-admin {
+    --eco-border: #e4e7ec;
+    --eco-muted: #667085;
+    --eco-text: #1d2939;
+    max-width: 1400px;
+}
+.eco-admin .eco-ui-header { margin: 8px 0 20px; }
+.eco-admin .eco-ui-header h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; padding: 0; }
+.eco-admin .eco-ui-header p { margin: 0; color: var(--eco-muted); font-size: 14px; }
+
+/* Cards */
+.eco-admin .eco-ui-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.eco-admin .eco-ui-card { display: flex; flex-direction: column; gap: 2px; padding: 16px 18px; border: 1px solid var(--eco-border); border-radius: 10px; background: #fff; text-decoration: none; color: var(--eco-text); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04); }
+.eco-admin a.eco-ui-card:hover { box-shadow: 0 3px 10px rgba(16, 24, 40, 0.1); transform: translateY(-1px); transition: all .12s ease; }
+.eco-admin .eco-ui-card-value { font-size: 26px; font-weight: 700; line-height: 1.2; }
+.eco-admin .eco-ui-card-label { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--eco-muted); }
+.eco-admin .eco-ui-card-hint { font-size: 12px; color: var(--eco-muted); }
+.eco-admin .eco-ui-card.eco-tone-green { border-top: 3px solid #16a34a; }
+.eco-admin .eco-ui-card.eco-tone-blue { border-top: 3px solid #2563eb; }
+.eco-admin .eco-ui-card.eco-tone-amber { border-top: 3px solid #d97706; }
+.eco-admin .eco-ui-card.eco-tone-red { border-top: 3px solid #dc2626; }
+.eco-admin .eco-ui-card.eco-tone-purple { border-top: 3px solid #7c3aed; }
+.eco-admin .eco-ui-card.eco-tone-gray { border-top: 3px solid #98a2b3; }
+
+/* Panels */
+.eco-admin .eco-ui-panel { background: #fff; border: 1px solid var(--eco-border); border-radius: 10px; padding: 18px 20px; margin-bottom: 20px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04); }
+.eco-admin .eco-ui-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.eco-admin .eco-ui-panel-head h2 { margin: 0; padding: 0; font-size: 16px; }
+.eco-admin .eco-ui-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.eco-admin .eco-ui-meta span { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--eco-muted); margin-bottom: 2px; }
+
+/* Tables */
+.eco-admin .eco-ui-table-wrap { overflow-x: auto; border: 1px solid var(--eco-border); border-radius: 8px; background: #fff; }
+.eco-admin .eco-ui-panel .eco-ui-table-wrap { border: 0; }
+.eco-admin .eco-ui-table { width: 100%; border-collapse: collapse; }
+.eco-admin .eco-ui-table th, .eco-admin .eco-ui-table td { padding: 11px 12px; text-align: left; vertical-align: middle; border-bottom: 1px solid #eef0f3; }
+.eco-admin .eco-ui-table thead th { background: #f8fafc; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #475467; }
+.eco-admin .eco-ui-table tbody tr:hover { background: #f8faff; }
+.eco-admin .eco-ui-empty { padding: 20px; color: var(--eco-muted); font-style: italic; text-align: center; }
+.eco-admin .eco-ui-count { margin: 0 0 10px; color: var(--eco-muted); }
+.eco-admin .eco-ui-note { display: block; color: var(--eco-muted); font-size: 12px; margin-top: 4px; }
+.eco-admin .eco-ui-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.eco-admin .eco-ui-filters input[type="search"], .eco-admin .eco-ui-filters select { min-height: 36px; min-width: 200px; }
+.eco-admin .eco-ui-pagination { margin: 14px 0; }
+.eco-admin .eco-ui-pagination .page-numbers { display: inline-block; padding: 5px 10px; margin-right: 4px; border: 1px solid var(--eco-border); border-radius: 4px; background: #fff; text-decoration: none; }
+.eco-admin .eco-ui-pagination .page-numbers.current { background: #2271b1; border-color: #2271b1; color: #fff; }
+
+/* Pills */
+.eco-admin .eco-ui-pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #f2f4f7; color: #475467; }
+.eco-admin .eco-ui-pill.eco-tone-green { background: #dcfce7; color: #15803d; }
+.eco-admin .eco-ui-pill.eco-tone-blue { background: #dbeafe; color: #1d4ed8; }
+.eco-admin .eco-ui-pill.eco-tone-amber { background: #fef3c7; color: #b45309; }
+.eco-admin .eco-ui-pill.eco-tone-red { background: #fee2e2; color: #b91c1c; }
+.eco-admin .eco-ui-pill.eco-tone-purple { background: #ede9fe; color: #6d28d9; }
+.eco-admin .eco-ui-pill.eco-tone-gray { background: #f3f4f6; color: #4b5563; }
+
+/* Row actions (Active Sessions) */
+.eco-admin .eco-row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.eco-admin .eco-row-actions form { margin: 0; }
+
+@media (max-width: 782px) {
+    .eco-admin .eco-ui-cards { grid-template-columns: repeat(2, 1fr); }
+}

@@ -261,3 +261,40 @@ seat tracking
 
 Transform the plugin into a **full coworking booking system similar to WeWork scheduling platforms**.
 
+
+---
+
+# Session Status (per date)
+
+A weekly/monthly booking is ONE WooCommerce order item with many session dates, so
+operational status is tracked **per date** in the item meta `_eco_session_status`:
+
+```
+{"2026-11-02":"completed","2026-11-09":"checked_in"}
+```
+
+- A date missing from the map is `booked`.
+- `eco_set_item_session_status()` changes one date; the Bookings row buttons
+  (Check in → Complete, No-show, Cancel, Reopen) and the countdown auto-complete only
+  ever touch the row's own date.
+- Legacy items (no `_eco_session_status`) are derived on read from
+  `_eco_checkin_status` / `_eco_checkin_dates` / `_eco_pre_checkin_status`:
+  a legacy "completed" plan shows only days up to today as completed; future days are booked.
+  The first write migrates the item. Legacy meta is never deleted.
+- `_eco_checkin_status` is still maintained as an item-level summary for compatibility.
+- The WooCommerce order status and the slot locking logic are unaffected.
+- Seat assignment is still per item (whole booking).
+
+# Admin Navigation
+
+Top-level **EcoSpace** menu (`includes/admin-pages.php`):
+Dashboard, Bookings, Workspaces, Customers, Payments, Active Sessions, Plans, Settings.
+
+- All screens are read views over existing data; no new tables or post types.
+- Customers / Payments / Dashboard totals use `eco_get_orders_index()`, a paged scan of
+  WooCommerce orders cached in a 5-minute transient (flushed on order changes).
+- Plans are viewed here and edited in each workspace product's Booking settings.
+- Old URLs (`page=eco-workspace-bookings`, `page=eco-seat-availability`) still work, and the
+  `[eco_workspace_bookings]` shortcode uses the same Bookings interface.
+- Shared styles: `assets/css/admin.css` (new screens); the Bookings interface keeps its own
+  inline styles because the front-end shortcode reuses it.
