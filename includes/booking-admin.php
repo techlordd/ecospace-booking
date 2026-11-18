@@ -746,9 +746,16 @@ function eco_should_include_ops_row($row, $filters)
 function eco_build_workspace_booking_rows($filters)
 {
     $rows = array();
+    $batch_size = 200;
+    $page = 1;
+
+    // Page through ALL orders (a fixed cap would silently drop older bookings and make
+    // the status cards disagree with the table).
+    do {
     $orders = wc_get_orders(
         array(
-            'limit' => 300,
+            'limit' => $batch_size,
+            'paged' => $page,
             'orderby' => 'date',
             'order' => 'DESC',
             'status' => eco_get_all_wc_status_keys(),
@@ -798,6 +805,7 @@ function eco_build_workspace_booking_rows($filters)
 
                 $row = array(
                     'order_id' => (int) $order->get_id(),
+                    'order_url' => $order->get_edit_order_url(),
                     'item_id' => (int) $item->get_id(),
                     'customer_name' => $customer_name,
                     'customer_email' => sanitize_email((string) $order->get_billing_email()),
@@ -826,6 +834,9 @@ function eco_build_workspace_booking_rows($filters)
             }
         }
     }
+
+    $page++;
+    } while (count($orders) === $batch_size);
 
     usort(
         $rows,
@@ -995,432 +1006,7 @@ function eco_render_workspace_bookings_styles($context = 'admin')
 
     $printed[$context] = true;
 
-    echo '<style>
-    .eco-workspace-bookings-shell {
-        margin-top: 16px;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-toolbar,
-    .eco-workspace-bookings-shell .eco-bookings-filters,
-    .eco-workspace-bookings-shell .eco-bookings-bulk-form {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        align-items: end;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-toolbar {
-        margin-bottom: 12px;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-filters {
-        margin-bottom: 16px;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-filters p,
-    .eco-workspace-bookings-shell .eco-bookings-bulk-form p {
-        margin: 0;
-    }
-
-    .eco-workspace-bookings-shell label {
-        display: block;
-        margin-bottom: 6px;
-        font-weight: 600;
-    }
-
-    .eco-workspace-bookings-shell input[type="date"],
-    .eco-workspace-bookings-shell input[type="search"],
-    .eco-workspace-bookings-shell select {
-        min-height: 38px;
-        min-width: 160px;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-count,
-    .eco-workspace-bookings-shell .eco-bookings-refresh-note {
-        margin: 0 0 12px;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-table-wrap {
-        overflow-x: auto;
-        border: 1px solid #dcdcde;
-        border-radius: 8px;
-        background: #fff;
-    }
-
-    .eco-workspace-bookings-shell table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .eco-workspace-bookings-shell th,
-    .eco-workspace-bookings-shell td {
-        padding: 12px;
-        border-bottom: 1px solid #e5e7eb;
-        vertical-align: top;
-        text-align: left;
-        white-space: nowrap;
-    }
-
-    .eco-workspace-bookings-shell thead th {
-        background: #f1f5f9;
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: #475467;
-        position: sticky;
-        top: 0;
-        z-index: 2;
-    }
-
-    .eco-workspace-bookings-shell tbody tr:nth-child(odd) {
-        background: #ffffff;
-    }
-
-    .eco-workspace-bookings-shell tbody tr:nth-child(even) {
-        background: #f8fafc;
-    }
-
-    .eco-workspace-bookings-shell tbody tr:hover {
-        background: #eef2ff;
-        transition: background 0.12s ease;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-inline-form {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-inline-form select {
-        min-width: 140px;
-        min-height: 32px;
-        font-size: 12px;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-inline-form .button {
-        align-self: flex-start;
-    }
-
-    .eco-workspace-bookings-shell .eco-bookings-empty {
-        padding: 24px 18px;
-        color: #667085;
-        font-style: italic;
-    }
-
-    .eco-workspace-bookings-shell .notice,
-    .eco-workspace-bookings-shortcode .notice {
-        margin: 0 0 16px;
-        padding: 12px 14px;
-        border-left: 4px solid #2271b1;
-        background: #fff;
-        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
-    }
-
-    .eco-workspace-bookings-shell .notice-success,
-    .eco-workspace-bookings-shortcode .notice-success {
-        border-left-color: #16a34a;
-    }
-
-    .eco-workspace-bookings-shell .notice-error,
-    .eco-workspace-bookings-shortcode .notice-error {
-        border-left-color: #dc2626;
-    }
-
-    .eco-workspace-bookings-shortcode {
-        margin: 24px 0;
-        padding: 20px;
-        border: 1px solid #e4e7ec;
-        border-radius: 12px;
-        background: #F0F0F1;
-    }
-
-    .eco-workspace-bookings-shortcode h2 {
-        margin: 0 0 8px;
-    }
-
-    .eco-workspace-bookings-shortcode .button,
-    .eco-workspace-bookings-shortcode button,
-    .eco-workspace-bookings-shortcode input[type="submit"] {
-        min-height: 38px;
-    }
-
-    /* Status badges */
-    .eco-status-badge {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 50px;
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.03em;
-        line-height: 1.6;
-        white-space: nowrap;
-        text-transform: capitalize;
-    }
-    .eco-badge-ops-booked      { background: #dbeafe; color: #1d4ed8; }
-    .eco-badge-ops-assigned    { background: #ede9fe; color: #6d28d9; }
-    .eco-badge-ops-checked_in  { background: #fef3c7; color: #b45309; }
-    .eco-badge-ops-completed   { background: #dcfce7; color: #15803d; }
-    .eco-badge-ops-no_show     { background: #fee2e2; color: #b91c1c; }
-    .eco-badge-ops-cancelled   { background: #f3f4f6; color: #4b5563; }
-    .eco-badge-paid   { background: #dcfce7; color: #15803d; }
-    .eco-badge-unpaid { background: #fff7ed; color: #c2410c; }
-    .eco-badge-plan   { background: #f0f4ff; color: #3b4fa0; }
-
-    /* Date/time cell */
-    .eco-date-cell {
-        display: block;
-        font-weight: 600;
-        color: #101828;
-        font-size: 13px;
-    }
-    .eco-time-cell {
-        display: block;
-        font-size: 12px;
-        color: #667085;
-        margin-top: 2px;
-    }
-
-    /* Pagination */
-    .eco-workspace-bookings-shell .eco-bookings-pagination {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        margin-top: 16px;
-        flex-wrap: wrap;
-    }
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-link,
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-current,
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-dots,
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-disabled {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 34px;
-        height: 34px;
-        padding: 0 12px;
-        border-radius: 6px;
-        font-size: 13px;
-        line-height: 1;
-        text-decoration: none;
-    }
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-link {
-        border: 1px solid #d1d5db;
-        background: #fff;
-        color: #374151;
-    }
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-link:hover {
-        background: #f3f4f6;
-        border-color: #9ca3af;
-    }
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-current {
-        border: 1px solid #4f46e5;
-        background: #4f46e5;
-        color: #fff;
-        font-weight: 600;
-    }
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-dots {
-        border: none;
-        background: transparent;
-        color: #6b7280;
-    }
-    .eco-workspace-bookings-shell .eco-bookings-pagination .eco-page-disabled {
-        border: 1px solid #e5e7eb;
-        background: #f9fafb;
-        color: #d1d5db;
-        cursor: default;
-    }
-
-    @media (max-width: 782px) {
-        .eco-workspace-bookings-shell .eco-bookings-toolbar,
-        .eco-workspace-bookings-shell .eco-bookings-filters,
-        .eco-workspace-bookings-shell .eco-bookings-bulk-form,
-        .eco-workspace-bookings-shell .eco-bookings-inline-form {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .eco-workspace-bookings-shell input[type="date"],
-        .eco-workspace-bookings-shell input[type="search"],
-        .eco-workspace-bookings-shell select {
-            width: 100%;
-            min-width: 0;
-        }
-    }
-
-    /* Customer detail modal */
-    .eco-modal-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.55);
-        z-index: 100000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .eco-modal-box {
-        background: #fff;
-        border-radius: 12px;
-        padding: 28px 32px;
-        max-width: 480px;
-        width: 94%;
-        position: relative;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
-    }
-    .eco-modal-box h3 {
-        margin: 0 0 20px;
-        font-size: 18px;
-        color: #101828;
-    }
-    .eco-modal-close {
-        position: absolute;
-        top: 14px;
-        right: 16px;
-        background: none;
-        border: none;
-        font-size: 22px;
-        line-height: 1;
-        cursor: pointer;
-        color: #6b7280;
-        padding: 4px 8px;
-    }
-    .eco-modal-close:hover { color: #101828; }
-    .eco-modal-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-        font-size: 13px;
-    }
-    .eco-modal-table th,
-    .eco-modal-table td {
-        padding: 7px 10px;
-        border-bottom: 1px solid #f3f4f6;
-        text-align: left;
-        vertical-align: top;
-    }
-    .eco-modal-table th {
-        width: 36%;
-        color: #6b7280;
-        font-weight: 600;
-    }
-    .eco-modal-table td { color: #101828; word-break: break-word; }
-    .eco-modal-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-    }
-    .eco-view-customer { margin-bottom: 8px; display: block; }
-
-    /* Checked-in countdown timer */
-    .eco-timer-countdown {
-        display: block;
-        margin-top: 5px;
-        font-size: 11px;
-        font-weight: 600;
-        color: #b45309;
-        letter-spacing: 0.02em;
-    }
-    .eco-timer-expired {
-        display: block;
-        margin-top: 5px;
-        font-size: 11px;
-        font-weight: 600;
-        color: #b91c1c;
-        letter-spacing: 0.02em;
-    }
-
-    /* Session-ended banner */
-    .eco-session-ended-banner {
-        position: fixed;
-        top: 32px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 200000;
-        background: #fef3c7;
-        border: 1px solid #f59e0b;
-        border-radius: 8px;
-        padding: 12px 20px 12px 16px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.14);
-        min-width: 280px;
-        max-width: 480px;
-        font-size: 13px;
-        color: #78350f;
-    }
-    .eco-session-ended-banner strong { display: block; margin-bottom: 4px; font-size: 14px; }
-    .eco-session-ended-banner ul { margin: 4px 0 0 16px; padding: 0; }
-    .eco-session-ended-banner .eco-banner-dismiss {
-        position: absolute;
-        top: 8px;
-        right: 10px;
-        background: none;
-        border: none;
-        font-size: 18px;
-        cursor: pointer;
-        color: #92400e;
-        line-height: 1;
-        padding: 0 4px;
-    }
-
-    /* Stat cards */
-    .eco-workspace-bookings-shell .eco-stats-bar {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-bottom: 16px;
-    }
-    .eco-workspace-bookings-shell .eco-stat-card {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 10px 24px;
-        border-radius: 8px;
-        border: 1px solid transparent;
-        min-width: 90px;
-    }
-    .eco-workspace-bookings-shell .eco-stat-count {
-        font-size: 22px;
-        font-weight: 700;
-        line-height: 1.2;
-    }
-    .eco-workspace-bookings-shell .eco-stat-label {
-        font-size: 11px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-top: 2px;
-        white-space: nowrap;
-    }
-    .eco-workspace-bookings-shell .eco-stat-completed  { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
-    .eco-workspace-bookings-shell .eco-stat-no_show    { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
-    .eco-workspace-bookings-shell .eco-stat-draft      { background: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
-    .eco-workspace-bookings-shell .eco-stat-cancelled  { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
-    .eco-workspace-bookings-shell .eco-stat-booked     { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
-    .eco-workspace-bookings-shell .eco-stat-checked_in { background: #fef3c7; color: #b45309; border-color: #fde68a; }
-    .eco-workspace-bookings-shell a.eco-stat-card { text-decoration: none; cursor: pointer; transition: box-shadow 0.12s ease, transform 0.12s ease; }
-    .eco-workspace-bookings-shell a.eco-stat-card:hover { box-shadow: 0 2px 8px rgba(16, 24, 40, 0.12); transform: translateY(-1px); }
-    .eco-workspace-bookings-shell a.eco-stat-card.is-active { box-shadow: 0 0 0 2px currentColor; }
-
-    /* Filters: primary row + collapsible extras */
-    .eco-workspace-bookings-shell .eco-more-filters { flex-basis: 100%; order: 10; }
-    .eco-workspace-bookings-shell .eco-more-filters > summary { cursor: pointer; font-weight: 600; color: #2271b1; margin-bottom: 8px; }
-    .eco-workspace-bookings-shell .eco-more-filters-body { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-    .eco-workspace-bookings-shell .eco-more-filters-body p { margin: 0; }
-
-    /* Row actions */
-    .eco-workspace-bookings-shell .eco-row-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .eco-workspace-bookings-shell .eco-row-actions form { margin: 0; }
-    .eco-workspace-bookings-shell .eco-order-note { display: block; font-size: 11px; color: #667085; margin-bottom: 4px; }
-    .eco-workspace-bookings-shell .eco-day-note { display: block; font-size: 11px; color: #667085; margin-top: 4px; }
-    .eco-workspace-bookings-shell .eco-row-menu { display: inline-block; }
-    .eco-workspace-bookings-shell .eco-row-menu > summary { list-style: none; cursor: pointer; padding: 2px 10px; border: 1px solid #c3c4c7; border-radius: 3px; background: #f6f7f7; line-height: 1.8; }
-    .eco-workspace-bookings-shell .eco-row-menu > summary::-webkit-details-marker { display: none; }
-    .eco-workspace-bookings-shell .eco-row-menu-list { margin-top: 6px; padding: 6px; background: #fff; border: 1px solid #dcdcde; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; }
-    .eco-workspace-bookings-shell .eco-row-menu-list .button { width: 100%; text-align: left; }
-    .eco-workspace-bookings-shell .eco-modal-seat-form { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb; }
-    .eco-workspace-bookings-shell .eco-modal-seat-form label { display: block; font-weight: 600; margin-bottom: 6px; }
-    .eco-workspace-bookings-shell .eco-modal-seat-form small { display: block; color: #667085; margin: 6px 0 10px; }
-    </style>';
+    echo '<link rel="stylesheet" id="eco-bookings-ui-css" href="' . esc_url(ECO_BOOKING_URL . 'assets/css/bookings-ui.css?ver=' . ECO_BOOKING_VERSION) . '">';
 }
 
 function eco_get_pagination_page_range($current_page, $total_pages)
@@ -1736,7 +1322,7 @@ function eco_render_workspace_bookings_interface($args = array())
                 . '>';
             echo '<td><input type="checkbox" class="eco-row-select" value="' . esc_attr((string) $row['order_id'] . ':' . (string) $row['item_id'] . ':' . $row['session_date']) . '"></td>';
             echo '<td><span class="eco-date-cell">' . esc_html($row['session_date']) . '</span><span class="eco-time-cell">' . esc_html($row['session_label']) . '</span></td>';
-            echo '<td><strong>' . esc_html($row['customer_name']) . '</strong><br><small>' . esc_html($row['customer_email']) . '</small><br><a href="' . esc_url(admin_url('post.php?post=' . (int) $row['order_id'] . '&action=edit')) . '">#' . esc_html((string) $row['order_id']) . '</a></td>';
+            echo '<td><strong>' . esc_html($row['customer_name']) . '</strong><br><small>' . esc_html($row['customer_email']) . '</small><br><a href="' . esc_url($row['order_url']) . '">#' . esc_html((string) $row['order_id']) . '</a></td>';
             echo '<td>' . esc_html($row['product_name']) . '</td>';
             echo '<td><span class="eco-status-badge eco-badge-plan">' . esc_html($row['plan']) . '</span></td>';
             echo '<td><span class="eco-order-note">' . esc_html(sprintf(__('Order: %s', 'ecospace-booking'), ucfirst($row['order_status']))) . '</span><span class="eco-status-badge ' . ($row['is_paid'] ? 'eco-badge-paid' : 'eco-badge-unpaid') . '">' . esc_html($row['is_paid'] ? __('Paid', 'ecospace-booking') : __('Unpaid', 'ecospace-booking')) . '</span></td>';
@@ -1777,6 +1363,7 @@ function eco_render_workspace_bookings_interface($args = array())
                 . ' data-email="'  . esc_attr($row['customer_email'])        . '"'
                 . ' data-phone="'  . esc_attr($row['customer_phone'])        . '"'
                 . ' data-order="'  . esc_attr((string) $row['order_id'])     . '"'
+                . ' data-order-url="' . esc_url($row['order_url'])           . '"'
                 . ' data-item="'   . esc_attr((string) $row['item_id'])      . '"'
                 . ' data-nonce="'  . esc_attr($row_nonce)                    . '"'
                 . ' data-ops="'    . esc_attr($row['ops_status'])            . '"'
@@ -1901,7 +1488,6 @@ function eco_render_workspace_bookings_interface($args = array())
       // Customer detail modal
       var ecoModal      = document.getElementById("eco_customer_modal");
       var ecoModalClose = document.getElementById("eco_modal_close");
-      var ecoOrderBase  = ' . wp_json_encode(admin_url('post.php')) . ';
 
       document.querySelectorAll(".eco-view-customer").forEach(function (btn) {
         btn.addEventListener("click", function () {
@@ -1916,9 +1502,7 @@ function eco_render_workspace_bookings_interface($args = array())
           document.getElementById("eco_modal_time").textContent   = d.time   || "\u2014";
           document.getElementById("eco_modal_seat").textContent   = d.seat   || "\u2014";
           document.getElementById("eco_modal_email_link").href = d.email ? "mailto:" + d.email : "#";
-          document.getElementById("eco_modal_order_link").href = d.order
-            ? ecoOrderBase + "?post=" + encodeURIComponent(d.order) + "&action=edit"
-            : "#";
+          document.getElementById("eco_modal_order_link").href = d.orderUrl || "#";
           document.getElementById("eco_modal_nonce").value  = d.nonce || "";
           document.getElementById("eco_modal_f_order").value = d.order || "";
           document.getElementById("eco_modal_f_item").value  = d.item  || "";

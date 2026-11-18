@@ -296,5 +296,7 @@ Dashboard, Bookings, Workspaces, Customers, Payments, Active Sessions, Plans, Se
 - Plans are viewed here and edited in each workspace product's Booking settings.
 - Old URLs (`page=eco-workspace-bookings`, `page=eco-seat-availability`) still work, and the
   `[eco_workspace_bookings]` shortcode uses the same Bookings interface.
-- Shared styles: `assets/css/admin.css` (new screens); the Bookings interface keeps its own
-  inline styles because the front-end shortcode reuses it.
+- Styles: `assets/css/admin.css` (new screens) and `assets/css/bookings-ui.css` (the Bookings
+  interface, linked directly so the front-end shortcode can use it too).
+- The bookings row builder pages through ALL orders (no fixed cap), so the table and the
+  status cards always agree. Order links use `get_edit_order_url()` (HPOS-safe).
