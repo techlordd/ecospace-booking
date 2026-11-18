@@ -611,8 +611,10 @@ function eco_rebuild_slots_admin_notice()
 add_action('admin_menu', 'eco_register_legacy_admin_pages');
 function eco_register_legacy_admin_pages()
 {
+    // 'options.php' as parent registers the page without showing it in any menu
+    // (a null parent triggers PHP 8.1+ deprecation notices on some WordPress versions).
     add_submenu_page(
-        null,
+        'options.php',
         __('Seat Availability', 'ecospace-booking'),
         __('Seat Availability', 'ecospace-booking'),
         'manage_woocommerce',
