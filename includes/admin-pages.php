@@ -34,6 +34,10 @@ function eco_register_main_admin_menu()
     foreach ($pages as $page) {
         add_submenu_page('ecospace', $page[1], $page[1], $cap, $page[0], $page[2]);
     }
+
+    // Convenience shortcut under WooCommerce. It is a plain link to the Bookings screen (no page
+    // callback of its own), so it always opens the real page: admin.php?page=eco-workspace-bookings.
+    add_submenu_page('woocommerce', __('Bookings', 'ecospace-booking'), __('Bookings', 'ecospace-booking'), $cap, 'admin.php?page=eco-workspace-bookings');
 }
 
 /**
